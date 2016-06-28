@@ -1,6 +1,7 @@
 import qualified Graphics.UI.GLFW as K
 import Graphics.Rendering.OpenGL.Raw
 import Graphics.Rendering.GLU.Raw (gluPerspective)
+import Foreign.Marshal.Array
 import Control.Monad.IO.Class (liftIO)
 import Data.Bits ( (.|.) )
 import System.Exit (exitWith, ExitCode(..))
@@ -13,6 +14,35 @@ data Camera = Camera (GLfloat,GLfloat,GLfloat) deriving (Show)
 unit :: GLfloat
 unit = 0.01
 
+norm3 :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat)
+norm3 (a,b,c) = (a/len,b/len,c/len) where len = sqrt(a*a+b*b+c*c)
+cross3 :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat)
+       -> (GLfloat,GLfloat,GLfloat)
+cross3 (ax,ay,az) (bx,by,bz) = (ay*bz-az*by,bx*az-bz*ax,ax*by-ay*bx)
+sub3 :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat)
+     -> (GLfloat,GLfloat,GLfloat)
+sub3 (a,b,c) (d,e,f) = (a-d,b-e,c-f)
+
+side :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat) 
+     -> (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat) -> IO ()
+side br bl tl tr = do
+  let (nx,ny,nz) = norm3 $  (br `sub3` tl) `cross3` (bl `sub3` tr)
+      ((xbr,ybr,zbr),(xbl,ybl,zbl),(xtl,ytl,ztl),(xtr,ytr,ztr)) = (br,bl,tl,tr)
+  glNormal3f nx ny nz
+  glVertex3f xbr ybr zbr
+  glVertex3f xbl ybl zbl
+  glVertex3f xtl ytl ztl
+  glVertex3f xtr ytr ztr
+
+cube :: (GLfloat,GLfloat,GLfloat) -> GLfloat -> IO ()
+cube (x,y,z) sz = do
+  side (x+sz,y,z) (x,y,z) (x,y+sz,z) (x+sz,y+sz,z)             -- Front
+  side (x,y,z) (x,y,z-sz) (x,y+sz,z-sz) (x,y+sz,z)             -- Left
+  side (x+sz,y,z) (x+sz,y,z-sz) (x+sz,y+sz,z-sz) (x+sz,y+sz,z) -- Right
+  side (x+sz,y,z-sz) (x,y,z-sz) (x,y+sz,z-sz) (x+sz,y+sz,z-sz) -- Back
+  side (x+sz,y+sz,z) (x,y+sz,z) (x,y+sz,z-sz) (x+sz,y+sz,z-sz) -- Top
+  side (x+sz,y,z) (x,y,z) (x,y,z-sz) (x+sz,y,z-sz)             -- Bottom
+
 initGL win = do
   glShadeModel gl_SMOOTH
   glClearColor 0 0 0 0
@@ -20,6 +50,8 @@ initGL win = do
   glEnable gl_DEPTH_TEST
   glDepthFunc gl_LEQUAL
   glHint gl_PERSPECTIVE_CORRECTION_HINT gl_NICEST
+  glEnable gl_LIGHTING
+  glEnable gl_LIGHT0
   (w,h) <- K.getFramebufferSize win
   resizeScene win w h
 
@@ -40,11 +72,15 @@ drawScene (Player (_,_,_) (x,y,z) (_,_) _) (Camera (cx,cy,_)) _ = do
   glRotatef cx 0 1 0
   glRotatef cy 1 0 0
   glBegin gl_QUADS
-  glColor3f 0.0 1.0 0.0
+  --glColor3f 0.0 1.0 0.0
+  --col <- newArray [0::GLfloat,1,0]
+  withArray [0::GLfloat,1,0] $ glMaterialfv gl_FRONT gl_DIFFUSE
+  {-glNormal3f 0 0 1
   glVertex3f x z (-y)
   glVertex3f (x+0.1) z (-y)
   glVertex3f (x+0.1) (z+0.1) (-y)
-  glVertex3f x (z+0.1) (-y)
+  glVertex3f x (z+0.1) (-y)-}
+  cube (x,z,-y) 0.1
   glEnd
 
 shutdown win = do
