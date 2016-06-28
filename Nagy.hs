@@ -28,7 +28,7 @@ side :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat)
 side br bl tl tr = do
   let (nx,ny,nz) = norm3 $  (br `sub3` tl) `cross3` (bl `sub3` tr)
       ((xbr,ybr,zbr),(xbl,ybl,zbl),(xtl,ytl,ztl),(xtr,ytr,ztr)) = (br,bl,tl,tr)
-  glNormal3f nx ny nz
+  glNormal3f (-nx) (-ny) (-nz)
   glVertex3f xbr ybr zbr
   glVertex3f xbl ybl zbl
   glVertex3f xtl ytl ztl
@@ -38,10 +38,10 @@ cube :: (GLfloat,GLfloat,GLfloat) -> GLfloat -> IO ()
 cube (x,y,z) sz = do
   side (x+sz,y,z) (x,y,z) (x,y+sz,z) (x+sz,y+sz,z)             -- Front
   side (x,y,z) (x,y,z-sz) (x,y+sz,z-sz) (x,y+sz,z)             -- Left
-  side (x+sz,y,z) (x+sz,y,z-sz) (x+sz,y+sz,z-sz) (x+sz,y+sz,z) -- Right
-  side (x+sz,y,z-sz) (x,y,z-sz) (x,y+sz,z-sz) (x+sz,y+sz,z-sz) -- Back
+  side (x+sz,y,z-sz) (x+sz,y,z) (x+sz,y+sz,z) (x+sz,y+sz,z-sz) -- Right
+  side (x,y,z-sz) (x+sz,y,z-sz) (x+sz,y+sz,z-sz) (x,y+sz,z-sz) -- Back
   side (x+sz,y+sz,z) (x,y+sz,z) (x,y+sz,z-sz) (x+sz,y+sz,z-sz) -- Top
-  side (x+sz,y,z) (x,y,z) (x,y,z-sz) (x+sz,y,z-sz)             -- Bottom
+  side (x,y,z) (x+sz,y,z) (x+sz,y,z-sz) (x,y,z-sz)             -- Bottom
 
 initGL win = do
   glShadeModel gl_SMOOTH
