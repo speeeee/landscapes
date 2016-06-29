@@ -43,6 +43,9 @@ cube (x,y,z) sz = do
   side (x+sz,y+sz,z) (x,y+sz,z) (x,y+sz,z-sz) (x+sz,y+sz,z-sz) -- Top
   side (x,y,z) (x+sz,y,z) (x+sz,y,z-sz) (x,y,z-sz)             -- Bottom
 
+degRad :: GLfloat -> GLfloat
+degRad = (*) pi . flip (/) 180
+
 initGL win = do
   glShadeModel gl_SMOOTH
   glClearColor 0 0 0 0
@@ -68,8 +71,9 @@ resizeScene win w h = do
 drawScene (Player (_,_,_) (x,y,z) (_,_) _) (Camera (cx,cy,_)) _ = do
   glClear $ fromIntegral $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
   glLoadIdentity
-  glTranslatef 0 0 (-1.5)
-  glRotatef cx 0 1 0
+  glTranslatef (-x) (-y-z*sin (degRad cy)) (-1.5+z*cos (degRad cy))
+  --putStrLn $ show $ sin $ degRad cy
+  glRotatef cx 0 (cos (degRad cy)) (sin (degRad cy))
   glRotatef cy 1 0 0
   glBegin gl_QUADS
   --glColor3f 0.0 1.0 0.0
@@ -80,7 +84,9 @@ drawScene (Player (_,_,_) (x,y,z) (_,_) _) (Camera (cx,cy,_)) _ = do
   glVertex3f (x+0.1) z (-y)
   glVertex3f (x+0.1) (z+0.1) (-y)
   glVertex3f x (z+0.1) (-y)-}
-  cube (x,z,-y) 0.1
+  cube (x,y,-z) 0.1
+  withArray [1::GLfloat,0,0] $ glMaterialfv gl_FRONT gl_DIFFUSE
+  side (5,0,5) (-5,0,5) (-5,0,-5) (5,0,-5)
   glEnd
 
 shutdown win = do
