@@ -71,7 +71,14 @@ resizeScene win w h = do
 drawScene (Player (_,_,_) (x,y,z) (_,_) _) (Camera (cx,cy,_)) _ = do
   glClear $ fromIntegral $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
   glLoadIdentity
-  glTranslatef (-x) (-y-z*sin (degRad cy)) (-1.5+z*cos (degRad cy))
+  let (xx,yx,zx) = (cos $ degRad cx,sin $ degRad cy,sin $ degRad cx)
+      (xz,yz,zz) = (sin $ degRad cx,sin $ degRad cy,cos $ degRad cx)
+  --(x',y',z') <- (cos $ degRad cx,sin $ degRad cy,sin $ degRad cx) `cross3` 
+  --              (sin $ degRad cx,sin $ degRad cy,cos $ degRad cx)
+  -- new axis of rotation.
+  --glTranslatef (-x+z*sin (degRad cx)) (-y-z*sin (degRad cy)) 
+  --             (-1.5+z*cos (degRad cy)*cos (degRad cx))
+  glTranslatef 0 0 (-1.5)
   --putStrLn $ show $ sin $ degRad cy
   glRotatef cx 0 (cos (degRad cy)) (sin (degRad cy))
   glRotatef cy 1 0 0
@@ -84,9 +91,9 @@ drawScene (Player (_,_,_) (x,y,z) (_,_) _) (Camera (cx,cy,_)) _ = do
   glVertex3f (x+0.1) z (-y)
   glVertex3f (x+0.1) (z+0.1) (-y)
   glVertex3f x (z+0.1) (-y)-}
-  cube (x,y,-z) 0.1
+  cube (-0.05,0,0.05) 0.1
   withArray [1::GLfloat,0,0] $ glMaterialfv gl_FRONT gl_DIFFUSE
-  side (5,0,5) (-5,0,5) (-5,0,-5) (5,0,-5)
+  side (-x+5,y,z+5) (-x-5,y,z+5) (-x-5,y,z-5) (-x+5,y,z-5)
   glEnd
 
 shutdown win = do
