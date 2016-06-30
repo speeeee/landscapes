@@ -15,7 +15,8 @@ unit :: GLfloat
 unit = 0.01
 
 norm3 :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat)
-norm3 (a,b,c) = (a/len,b/len,c/len) where len = sqrt(a*a+b*b+c*c)
+norm3 (a,b,c) = (a/l',b/l',c/l') where len = sqrt(a*a+b*b+c*c)
+                                       l' = if len == 0 then 1 else len
 cross3 :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat)
        -> (GLfloat,GLfloat,GLfloat)
 cross3 (ax,ay,az) (bx,by,bz) = (ay*bz-az*by,bx*az-bz*ax,ax*by-ay*bx)
@@ -71,8 +72,8 @@ resizeScene win w h = do
 drawScene (Player (_,_,_) (x,y,z) (_,_) _) (Camera (cx,cy,_)) _ = do
   glClear $ fromIntegral $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
   glLoadIdentity
-  let (xx,yx,zx) = (cos $ degRad cx,sin $ degRad cy,sin $ degRad cx)
-      (xz,yz,zz) = (sin $ degRad cx,sin $ degRad cy,cos $ degRad cx)
+  --let (xx,yx,zx) = (cos $ degRad cx,sin $ degRad cy,sin $ degRad cx)
+  --    (xz,yz,zz) = (sin $ degRad cx,sin $ degRad cy,cos $ degRad cx)
   --(x',y',z') <- (cos $ degRad cx,sin $ degRad cy,sin $ degRad cx) `cross3` 
   --              (sin $ degRad cx,sin $ degRad cy,cos $ degRad cx)
   -- new axis of rotation.
@@ -126,11 +127,14 @@ parseInput (Player (xa,ya,za) (xt,yt,zt) (_,_) _) (Camera (cxt,cyt,_)) win = do
   --putStrLn $ "y: "++(show yt)
   let (nx,nz) = moveA (x,z) (xt,zt) (cx+cxt,cy+cyt)
   return (Player (xa,ya,za) (nx,0,nz) (0,0) 0,
-    Camera (cx+cxt,cy+cyt,0))
+    Camera (-cx+cxt,cy+cyt,0))
 
 moveA :: (GLfloat,GLfloat) -> (GLfloat,GLfloat) -> (GLfloat,GLfloat) ->
   (GLfloat,GLfloat)
-moveA (x,z) (xt,zt) (cx,cy) = (x*unit+xt,z*unit+zt)
+moveA (dx,dz) (xt,zt) (cx,cy) = let (s,c) = (sin $ degRad cx,cos $ degRad cx)
+                                    (x',z',_) = norm3 (dx,dz,0)
+                                    (x,z) = (x'*unit,z'*unit) in
+  (x*c+z*s+xt,-x*s+z*c+zt)
 
 runGame player cam win = do
   K.pollEvents
