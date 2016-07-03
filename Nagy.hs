@@ -7,12 +7,31 @@ import Data.Bits ( (.|.) )
 import System.Exit (exitWith, ExitCode(..))
 import Data.List
 
+type Pt = (GLfloat,GLfloat,GLfloat)
 data Player = Player (GLfloat,GLfloat,GLfloat) (GLfloat,GLfloat,GLfloat)
   (GLfloat,GLfloat) Int deriving (Show)
 data Camera = Camera (GLfloat,GLfloat,GLfloat) deriving (Show)
 
 unit :: GLfloat
 unit = 0.01
+
+csz :: GLfloat
+csz = 0.1
+
+p :: GLfloat
+p = (1+sqrt(5))/2
+
+tlst :: [Pt]
+tlst = [(-1,p,0),(1,p,0),(-1,-p,0),(1,-p,0)
+       ,(0,-1,p),(0,1,p),(0,-1,-p),(0,1,-p)
+       ,(p,0,-1),(p,0,1),(-p,0,-1),(-p,0,1)]
+
+ico :: [(Pt,Pt,Pt)]
+ico = map (\(x,y,z) -> (tlst!!x,tlst!!y,tlst!!z))
+  [(0,11,5),(0,5,1),(0,1,7),(0,7,10),(0,10,11)
+  ,(1,5,9),(5,11,4),(11,10,2),(10,7,6),(7,1,8)
+  ,(3,9,4),(3,4,2),(3,2,6),(3,6,8),(3,8,9)
+  ,(4,9,5),(2,4,11),(6,2,10),(8,6,7),(9,8,1)]
 
 norm3 :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat)
 norm3 (a,b,c) = (a/l',b/l',c/l') where len = sqrt(a*a+b*b+c*c)
@@ -23,6 +42,10 @@ cross3 (ax,ay,az) (bx,by,bz) = (ay*bz-az*by,bx*az-bz*ax,ax*by-ay*bx)
 sub3 :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat)
      -> (GLfloat,GLfloat,GLfloat)
 sub3 (a,b,c) (d,e,f) = (a-d,b-e,c-f)
+op3 :: (GLfloat -> GLfloat -> GLfloat) -> Pt -> Pt -> Pt
+op3 op (a,b,c) (d,e,f) = (a`op`d,b`op`e,c`op`f)
+op3s :: (GLfloat -> GLfloat -> GLfloat) -> GLfloat -> Pt -> Pt
+op3s op a (d,e,f) = (a`op`d,a`op`e,a`op`f)
 
 side :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat) 
      -> (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat) -> IO ()
@@ -34,6 +57,12 @@ side br bl tl tr = do
   glVertex3f xbl ybl zbl
   glVertex3f xtl ytl ztl
   glVertex3f xtr ytr ztr
+
+tri :: (Pt,Pt,Pt) -> IO ()
+tri ((xa,ya,za),(xb,yb,zb),(xc,yc,zc)) = do
+  glVertex3f xa ya za
+  glVertex3f xb yb zb
+  glVertex3f xc yc zc
 
 cube :: (GLfloat,GLfloat,GLfloat) -> GLfloat -> IO ()
 cube (x,y,z) sz = do
@@ -72,27 +101,16 @@ resizeScene win w h = do
 drawScene (Player (_,_,_) (x,y,z) (_,_) _) (Camera (cx,cy,_)) _ = do
   glClear $ fromIntegral $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
   glLoadIdentity
-  --let (xx,yx,zx) = (cos $ degRad cx,sin $ degRad cy,sin $ degRad cx)
-  --    (xz,yz,zz) = (sin $ degRad cx,sin $ degRad cy,cos $ degRad cx)
-  --(x',y',z') <- (cos $ degRad cx,sin $ degRad cy,sin $ degRad cx) `cross3` 
-  --              (sin $ degRad cx,sin $ degRad cy,cos $ degRad cx)
-  -- new axis of rotation.
-  --glTranslatef (-x+z*sin (degRad cx)) (-y-z*sin (degRad cy)) 
-  --             (-1.5+z*cos (degRad cy)*cos (degRad cx))
   glTranslatef 0 0 (-1.5)
-  --putStrLn $ show $ sin $ degRad cy
   glRotatef cx 0 (cos (degRad cy)) (sin (degRad cy))
   glRotatef cy 1 0 0
-  glBegin gl_QUADS
-  --glColor3f 0.0 1.0 0.0
-  --col <- newArray [0::GLfloat,1,0]
+  --glBegin gl_QUADS
   withArray [0::GLfloat,1,0] $ glMaterialfv gl_FRONT gl_DIFFUSE
-  {-glNormal3f 0 0 1
-  glVertex3f x z (-y)
-  glVertex3f (x+0.1) z (-y)
-  glVertex3f (x+0.1) (z+0.1) (-y)
-  glVertex3f x (z+0.1) (-y)-}
-  cube (-0.05,0,0.05) 0.1
+  --cube (-0.05,0,0.05) 0.1
+  glBegin gl_TRIANGLES
+  mapM_ (tri . (\(a,b,c) -> (op3s (*) 0.1 a,op3s (*) 0.1 b,op3s (*) 0.1 c))) ico
+  glEnd
+  glBegin gl_QUADS
   withArray [1::GLfloat,0,0] $ glMaterialfv gl_FRONT gl_DIFFUSE
   side (-x+5,y,z+5) (-x-5,y,z+5) (-x-5,y,z-5) (-x+5,y,z-5)
   glEnd
