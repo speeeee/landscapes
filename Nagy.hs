@@ -7,7 +7,8 @@ import Data.Bits ( (.|.) )
 import System.Exit (exitWith, ExitCode(..))
 import Data.List
 
-type Pt = (GLfloat,GLfloat,GLfloat)
+import Util.Vec3
+
 data Player = Player (GLfloat,GLfloat,GLfloat) (GLfloat,GLfloat,GLfloat)
   (GLfloat,GLfloat) Int deriving (Show)
 data Camera = Camera (GLfloat,GLfloat,GLfloat) deriving (Show)
@@ -33,20 +34,6 @@ ico = map (\(x,y,z) -> (tlst!!x,tlst!!y,tlst!!z))
   ,(3,9,4),(3,4,2),(3,2,6),(3,6,8),(3,8,9)
   ,(4,9,5),(2,4,11),(6,2,10),(8,6,7),(9,8,1)]
 
-norm3 :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat)
-norm3 (a,b,c) = (a/l',b/l',c/l') where len = sqrt(a*a+b*b+c*c)
-                                       l' = if len == 0 then 1 else len
-cross3 :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat)
-       -> (GLfloat,GLfloat,GLfloat)
-cross3 (ax,ay,az) (bx,by,bz) = (ay*bz-az*by,bx*az-bz*ax,ax*by-ay*bx)
-sub3 :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat)
-     -> (GLfloat,GLfloat,GLfloat)
-sub3 (a,b,c) (d,e,f) = (a-d,b-e,c-f)
-op3 :: (GLfloat -> GLfloat -> GLfloat) -> Pt -> Pt -> Pt
-op3 op (a,b,c) (d,e,f) = (a`op`d,b`op`e,c`op`f)
-op3s :: (GLfloat -> GLfloat -> GLfloat) -> GLfloat -> Pt -> Pt
-op3s op a (d,e,f) = (a`op`d,a`op`e,a`op`f)
-
 side :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat) 
      -> (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat) -> IO ()
 side br bl tl tr = do
@@ -60,6 +47,9 @@ side br bl tl tr = do
 
 tri :: (Pt,Pt,Pt) -> IO ()
 tri ((xa,ya,za),(xb,yb,zb),(xc,yc,zc)) = do
+  let (bl,br,t)  = ((xa,ya,za),(xb,yb,zb),(xc,yc,zc))
+      (nx,ny,nz) = norm3 $ (bl `sub3` t) `cross3` (br `sub3` t)
+  glNormal3f (nx) (ny) (nz)
   glVertex3f xa ya za
   glVertex3f xb yb zb
   glVertex3f xc yc zc
@@ -108,7 +98,7 @@ drawScene (Player (_,_,_) (x,y,z) (_,_) _) (Camera (cx,cy,_)) _ = do
   withArray [0::GLfloat,1,0] $ glMaterialfv gl_FRONT gl_DIFFUSE
   --cube (-0.05,0,0.05) 0.1
   glBegin gl_TRIANGLES
-  mapM_ (tri . (\(a,b,c) -> (op3s (*) 0.1 a,op3s (*) 0.1 b,op3s (*) 0.1 c))) ico
+  mapM_ (tri . op3e (+) (-0.05,0.15,0.05) . op3es (*) 0.1) ico
   glEnd
   glBegin gl_QUADS
   withArray [1::GLfloat,0,0] $ glMaterialfv gl_FRONT gl_DIFFUSE
