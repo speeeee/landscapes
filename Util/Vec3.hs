@@ -10,9 +10,15 @@ norm3 (a,b,c) = (a/l',b/l',c/l') where len = sqrt(a*a+b*b+c*c)
 cross3 :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat)
        -> (GLfloat,GLfloat,GLfloat)
 cross3 (ax,ay,az) (bx,by,bz) = (ay*bz-az*by,bx*az-bz*ax,ax*by-ay*bx)
+--dot3 :: Pt -> Pt -> GLfloat
+--dot3 = opV (+) . op3 (*)
+
+
 sub3 :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat)
      -> (GLfloat,GLfloat,GLfloat)
 sub3 (a,b,c) (d,e,f) = (a-d,b-e,c-f)
+opV :: (GLfloat -> GLfloat -> GLfloat) -> Pt -> GLfloat
+opV op (x,y,z) = x`op`y`op`z
 op3 :: (GLfloat -> GLfloat -> GLfloat) -> Pt -> Pt -> Pt
 op3 op (a,b,c) (d,e,f) = (a`op`d,b`op`e,c`op`f)
 op3s :: (GLfloat -> GLfloat -> GLfloat) -> GLfloat -> Pt -> Pt
