@@ -1,15 +1,16 @@
-module Core.Phys (Force(..),Obj(..),acc,opf,nextp) where
+module Core.Phys (Force(..),Obj(..),Camera(..),acc,opf,nextp) where
 
 import Graphics.Rendering.OpenGL.Raw
 import Graphics.Rendering.GLU.Raw (gluPerspective)
 
 import Util.Vec3
 
--- Force   =       vector time
-data Force = Force Pt Int deriving (Show,Eq)
--- Obj     =     pos velocity [forces]
-data Obj   = Obj Pt Pt [Force] deriving (Show,Eq)
-
+-- Force    =       vector time
+data Force  = Force Pt Int deriving (Show,Eq)
+-- Obj      =     pos velocity [forces]
+data Obj    = Obj Pt Pt [Force] deriving (Show,Eq)
+-- Camera   =        pos theta
+data Camera = Camera Pt GLfloat deriving (Show,Eq)
 vsum :: [Pt] -> Pt
 vsum = foldr (\(x,y,z) (x',y',z') -> (x+x',y+y',z+z')) (0,0,0)
 

@@ -19,6 +19,9 @@ unit = 0.01
 csz :: GLfloat
 csz = 0.1
 
+massive :: GLfloat
+massive = 500
+
 side :: (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat) 
      -> (GLfloat,GLfloat,GLfloat) -> (GLfloat,GLfloat,GLfloat) -> IO ()
 side br bl tl tr = do
@@ -31,8 +34,9 @@ side br bl tl tr = do
 circle :: (GLfloat,GLfloat,GLfloat) -> GLfloat -> IO ()
 circle (x,y,z) r = do
   let pts = map ((* (2*pi)) . (* (1/20))) [0,1..20]
-  glVertex3f x z 0
-  mapM_ (\t -> glVertex3f ((cos t)*r) ((sin t)*r) 0) pts
+  glVertex3f x y 0
+  --putStrLn $ show x
+  mapM_ (\t -> glVertex3f ((cos t)*r+x) ((sin t)*r+y) 0) pts
 
 degRad :: GLfloat -> GLfloat
 degRad = (*) pi . flip (/) 180
@@ -53,16 +57,21 @@ resizeScene win w h = do
   glLoadIdentity
   glFlush
 
-drawScene (Obj (x,y,z) _ _) _ = do
+drawScene (Obj (bx,by,bz) _ _) (Camera (x,y,z) t) _ = do
   glClear $ fromIntegral $ gl_COLOR_BUFFER_BIT .|. gl_DEPTH_BUFFER_BIT
   glLoadIdentity
   glBegin gl_QUADS
   glColor3f 1.0 0.0 0.0
   side (-x+1,-z+1,0) (-x-1,-z+1,0) (-x-1,-z-1,0) (-x+1,-z-1,0)
   glEnd
+  glBegin gl_LINES
+  glColor3f 0.75 0 0.85
+  glVertex3f (-x) (-z) 0
+  glVertex3f (-x+cos (degRad t)*massive) (-z+sin (degRad t)*massive) 0
+  glEnd
   glBegin gl_TRIANGLE_FAN
   glColor3f 0 1 0
-  circle (0,0,0) 0.1
+  circle (-x,-z,0) 0.1
   glEnd
 
 shutdown win = do
@@ -88,25 +97,26 @@ getInput win = do
   let (x0:x1:x2:x3:x4:x5:x6:x7:_) = x
   return (x1-x0,x3-x2,x5-x4,x7-x6)
 
-parseInput :: Obj -> K.Window -> IO (Obj)
-parseInput (Obj (xt,yt,zt) v f) win = do
-  (x,z,_,_) <- getInput win
-  return $ Obj (x*unit+xt,0,z*unit+zt) v f
+parseInput :: Obj -> Camera -> K.Window -> IO (Obj,Camera)
+parseInput (Obj (xt,yt,zt) v f) (Camera (cxt,cyt,czt) t) win = do
+  (x,z,cx,_) <- getInput win
+  return (Obj (xt,0,zt) v f, Camera (cxt+unit*x,cyt,czt+unit*z) (t+cx))
 
-runGame player win = do
+runGame player cam win = do
   K.pollEvents
-  player' <- parseInput player win
-  drawScene player' win
+  (player',cam') <- parseInput player cam win
+  drawScene player' cam' win
   K.swapBuffers win
-  runGame player' win
+  runGame player' cam' win
 
 main = do
   True <- K.init
   Just win <- K.createWindow 800 800 "Lietuva" Nothing Nothing
   let player = Obj (0,0,0) (0,0,0) []
+      camera = Camera (0,0,0) 0
   K.makeContextCurrent (Just win)
-  K.setWindowRefreshCallback win (Just (drawScene player))
+  K.setWindowRefreshCallback win (Just (drawScene player camera))
   K.setFramebufferSizeCallback win (Just resizeScene)
   K.setWindowCloseCallback win (Just shutdown)
   initGL win
-  runGame player win
+  runGame player camera win
