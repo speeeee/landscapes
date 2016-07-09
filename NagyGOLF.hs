@@ -9,6 +9,7 @@ import Data.List
 
 import Util.Vec3
 import Core.Phys
+import Core.Rules
 
 --data Obj = Obj (GLfloat,GLfloat,GLfloat) (GLfloat,GLfloat,GLfloat)
 --  deriving (Show)
