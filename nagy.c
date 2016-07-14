@@ -1,40 +1,81 @@
-#include <stdlib.h>
 #include <stdio.h>
-#include <math.h>
+#include <stdlib.h>
+#include <limits.h>
 #include <time.h>
-
-#define MH 255
-#define HH 127
+#include <math.h>
+#include <GLFW/glfw3.h>
+#include <OpenGL/GL.h>
 
 #define SZ 2048
+#define SZ2 pow(SZ,2)
+#define SL 100
 
-void ds_map(int sz,int8_t **bmap, int bh, int l, int r, int t, int b) {
-  int x_cnt = (r+l)/2; int y_cnt = (t+b)/2;
-  int cv = bmap[x_cnt][y_cnt] = (bmap[l][t]+bmap[r][t]+bmap[l][b]+bmap[r][b])/4
-    - (rand()%bh-bh/2)/2;
-  bmap[x_cnt][t] = ((bmap[l][t]+bmap[r][t])-(rand()%bh-bh/2))/2;
-  bmap[x_cnt][b] = ((bmap[l][b]+bmap[r][b])-(rand()%bh-bh/2))/2;
-  bmap[l][y_cnt] = ((bmap[l][t]+bmap[l][b])-(rand()%bh-bh/2))/2;
-  bmap[r][y_cnt] = ((bmap[r][t]+bmap[r][b])-(rand()%bh-bh/2))/2;
-  if(r-l>2) { int nbh = ceil((double)bh*(double)pow(2.0,-0.75));
-    ds_map(sz,bmap,nbh,l,x_cnt,t,y_cnt); ds_map(sz,bmap,nbh,x_cnt,r,t,y_cnt);
-    ds_map(sz,bmap,nbh,l,x_cnt,y_cnt,b); ds_map(sz,bmap,nbh,x_cnt,r,y_cnt,b); } }
+typedef struct { double x; double y; double z; } cam;
 
-/*void ds_mapf(int sz, int bh, int sp, int l, int r, int t, int b) {
-  int x_cnt = (r+l)/2; int y_cnt = (t+b)/2;*/
-  
+void draw_map(int16_t *map, int sz) {
+  for(int i=0;i<sz;i++) { if((int8_t)(map[i] & 0xff)>SL) {
+    glVertex3f((double)(i%SZ)/SZ,i/SZ2,0); } } }
+void in_map(FILE *f, int16_t **map, int sz) {
+  for(int i=0;i<sz;i++) { fread(&(*map)[i],sizeof(int16_t),1,f); } }
 
-void out_map(int sz,int8_t **bmap,FILE *f) { int8_t e = 0;
-  for(int i=0;i<pow(sz,2);i++) {
-    fwrite(&bmap[i%SZ][i/SZ],sizeof(int8_t),1,f);
-    fwrite(&e,sizeof(int8_t),1,f); } } 
+void error_callback(int error, const char* description) {
+    fputs(description, stderr); }
+void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+    if (key == GLFW_KEY_ESCAPE && action == GLFW_PRESS)
+        glfwSetWindowShouldClose(window, GL_TRUE); }
+void rsz(GLFWwindow *win, int w, int h) {
+  glViewport(0,0,w,h); float ratio = w/ (float) h;
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  glOrtho(0, 1, 0, 1.f, 1.f, 0);
+  glMatrixMode(GL_MODELVIEW); }
 
-int main(int argc, char **argv) { int8_t **amap = malloc(SZ*sizeof(int8_t *));
-  for(int i=0;i<SZ;i++) { amap[i] = malloc(SZ*sizeof(int8_t)); }
-  int seed = time(NULL); srand(seed); 
-  amap[0][0] = MH/2; amap[SZ-1][0] = MH/2;
-  amap[SZ-1][SZ-1] = MH/2; amap[0][SZ-1] = MH/2;
-  ds_map(SZ,amap,MH,0,SZ-1,SZ-1,0);
+void setup(GLFWwindow *win) {
+  float ratio;
+  int width, height;
+  glfwGetFramebufferSize(win, &width, &height);
+  ratio = width / (float) height;
+  glViewport(0, 0, width, height);
+  glClear(GL_COLOR_BUFFER_BIT);
+  glMatrixMode(GL_PROJECTION);
+  glLoadIdentity();
+  glOrtho(0, 1, 0, 1.f, 1.f, 0);
+  glMatrixMode(GL_MODELVIEW);
+  glLoadIdentity(); }
 
-  FILE *f = fopen("output.nmp","wb"); out_map(SZ,amap,f); fclose(f);
-  free(amap); return 0; }
+void paint(GLFWwindow *win, cam c, int16_t *map) { 
+  glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); glLoadIdentity();
+  glTranslatef(-c.x*0.01,-c.y*0.01,0);
+  glBegin(GL_POINTS); glColor3f(1,1,1); draw_map(map,SZ2); glEnd(); }
+
+int pressed(GLFWwindow *win,int x) { return glfwGetKey(win,x)!=GLFW_RELEASE; }
+
+cam getInput(GLFWwindow *win) { 
+  int l = -pressed(win,GLFW_KEY_LEFT); int r = pressed(win,GLFW_KEY_RIGHT);
+  int u = pressed(win,GLFW_KEY_UP); int d = -pressed(win,GLFW_KEY_DOWN);
+  int i = pressed(win,GLFW_KEY_I); int o = -pressed(win,GLFW_KEY_O);
+  return (cam) { l+r,u+d,i+o }; }
+
+cam parse_input(GLFWwindow *win, cam c) {
+  cam e = getInput(win); c = (cam){ c.x+e.x, c.y+e.y, c.z+e.z };
+  return c; }
+
+int main(void) { cam c = { 0, 0, 0 };
+  int16_t *map = malloc(SZ2*sizeof(int16_t));
+  FILE *f = fopen("output.nmp","rb"); in_map(f,&map,SZ2); fclose(f);
+  GLFWwindow *window;
+  glfwSetErrorCallback(error_callback);
+  if (!glfwInit()) exit(EXIT_FAILURE);
+  window = glfwCreateWindow(800, 800, "Lietuva", NULL, NULL);
+  if (!window) {
+      glfwTerminate();
+      exit(EXIT_FAILURE); }
+  glfwMakeContextCurrent(window);
+  glfwSwapInterval(1);
+  glfwSetKeyCallback(window, key_callback); setup(window);
+  glfwSetFramebufferSizeCallback(window, rsz);
+  while (!glfwWindowShouldClose(window)) { paint(window,c,map);
+    c = parse_input(window,c); glfwSwapBuffers(window); glfwPollEvents(); }
+  glfwDestroyWindow(window);
+  glfwTerminate();
+  exit(EXIT_SUCCESS); free(map); }
