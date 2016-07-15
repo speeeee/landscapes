@@ -8,13 +8,13 @@
 
 #define SZ 2048
 #define SZ2 pow(SZ,2)
-#define SL 100
+#define SL 64
 
 typedef struct { double x; double y; double z; } cam;
 
-void draw_map(int16_t *map, int sz) {
+void draw_map(int16_t *map, int sz, double cz) {
   for(int i=0;i<sz;i++) { if((int8_t)(map[i] & 0xff)>SL) {
-    glVertex3f((double)(i%SZ)/SZ,i/SZ2,0); } } }
+    glVertex3f((double)(i%SZ)/SZ*cz,i/SZ2*cz,0); } } }
 void in_map(FILE *f, int16_t **map, int sz) {
   for(int i=0;i<sz;i++) { fread(&(*map)[i],sizeof(int16_t),1,f); } }
 
@@ -46,7 +46,7 @@ void setup(GLFWwindow *win) {
 void paint(GLFWwindow *win, cam c, int16_t *map) { 
   glClear (GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT); glLoadIdentity();
   glTranslatef(-c.x*0.01,-c.y*0.01,0);
-  glBegin(GL_POINTS); glColor3f(1,1,1); draw_map(map,SZ2); glEnd(); }
+  glBegin(GL_POINTS); glColor3f(1,1,1); draw_map(map,SZ2,c.z*0.01); glEnd(); }
 
 int pressed(GLFWwindow *win,int x) { return glfwGetKey(win,x)!=GLFW_RELEASE; }
 
@@ -57,10 +57,10 @@ cam getInput(GLFWwindow *win) {
   return (cam) { l+r,u+d,i+o }; }
 
 cam parse_input(GLFWwindow *win, cam c) {
-  cam e = getInput(win); c = (cam){ c.x+e.x, c.y+e.y, c.z+e.z };
+  cam e = getInput(win); c = (cam){ c.x+e.x, c.y+e.y, c.z+e.z*c.z/100 };
   return c; }
 
-int main(void) { cam c = { 0, 0, 0 };
+int main(void) { cam c = { 0, 0, 100 };
   int16_t *map = malloc(SZ2*sizeof(int16_t));
   FILE *f = fopen("output.nmp","rb"); in_map(f,&map,SZ2); fclose(f);
   GLFWwindow *window;
