@@ -3,10 +3,16 @@
 #include <limits.h>
 #include <time.h>
 #include <math.h>
+#include <string.h>
 
-typedef struct { int8_t r; int8_t g; int8_t b; } col;
+typedef struct { uint8_t r; uint8_t g; uint8_t b; } col;
 typedef struct { col *dat; int w; int h; } img;
 typedef struct { int *bl; col ps; int w; int h; } tile;
+
+typedef struct { double x; double y; } pos;
+typedef struct { char *f; img a; img b; } fun;
+
+int ceq(col a, col b) { return (a.r==b.r&&a.g==b.g&&a.b==b.b); }
 
 // load BMP
 img read_img(FILE *f) { int8_t header[54];
@@ -27,3 +33,16 @@ int test_px(int t, int tw, int th, int ind, tile b) {
 // in tile a.
 int tile_cmp(tile a, tile b) { int i;
   for(i=0;i<a.w*a.h&&test_px(a.bl[i],a.w,a.h,i,b);i++); return i==a.w*a.h; }
+
+tile silh(img a, col c) { tile n; n.bl = malloc(a.w*a.h*sizeof(int));
+  for(int i=0;i<a.w*a.h;i++) { n.bl[i] = ceq(img.dat[i],c); } return n; }
+
+char *eval(fun);
+fun pimg(img,tile *);
+
+// warning: function has no bounds checking yet.
+fun pimg(img x, tile *tbl, int tsz) { int i;
+  for(i=0;i<tsz&&tile_cmp(tbl[i],silh(x,tbl[i].ps));i++); return tbl[i]; }
+/*char *eval(fun x) { fun a = pimg(x.a); fun b = pimg(x.b);
+  char *e = malloc((strlen(a.f)+strlen(b.f)+strlen(x.f))*sizeof(char));
+  strcpy(e,x.f); strcat(e,a.f); strcat(e,*/
