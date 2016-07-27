@@ -7,7 +7,7 @@
 
 #define PARSER ("nagyp")
 
-typedef struct { uint8_t r; uint8_t g; uint8_t b; } col;
+typedef struct { uint8_t r; uint8_t g; uint8_t b; uint8_t a; } col;
 typedef struct { col *dat; int w; int h; } img;
 
 img read_img(FILE *);
@@ -26,12 +26,13 @@ img read_img(FILE *f) { uint8_t header[54];
   int e = fread(dat,1,isz,f);
   im.dat = malloc(isz/bpp*sizeof(col));
   for(int i=0;i<isz;i+=bpp) { 
-    im.dat[i/bpp] = (col) { dat[i], dat[i+1], dat[i+2] }; }
+    im.dat[i/bpp] = (col) { dat[i], dat[i+1], dat[i+2], dat[i+3] }; }
   return im; }
 
 void pr_img(img a) { printf("%i ",a.w); printf("%i ",a.h);
   for(int i=0;i<a.w*a.h;i++) { printf("%i,",a.dat[i].r);
-    printf("%i,",a.dat[i].g); printf("%i ",a.dat[i].b); } }
+    printf("%i,",a.dat[i].g); printf("%i,",a.dat[i].b);
+    printf("%i ",a.dat[i].a); } }
 
 // simple comparison main
 int main(int argc,char **argv) {
