@@ -5,14 +5,33 @@ import Data.List.Split
 
 data Img = Img Int Int [[[Int]]] deriving (Show,Eq)
 data Frame = Int Int Int Int deriving (Show,Eq)
+data Fun = Img [Char] Frame Bool deriving (Show,Eq) -- the Bool is to confirm dead-end
 
 main = do
-  (_,Just plst,_,_) <- 
+  (_,Just plst,_,_) <-
     createProcess (proc "./char_read" []) { std_out = CreatePipe }
   c <- hGetContents plst
   let (g:b:_) = toImgs $ words c
       e = imgCmpS g (extr (1,1,3,3) b) [0,249,0,255]
   putStrLn $ show e
+
+-- function will be cleaned.
+eval :: Img -> Frame -> [Fun] -> [Char]
+eval i f fs = eval' i f fs i
+eval' :: Img -> Frame -> [Fun] -> Img -> [Char]
+eval' = execF . uncurry evalArg . toF . flip extrf
+
+toF :: Img -> [Fun] -> (Fun,[Fun])
+toF i fs = case find (flip imgCmpS i) fs of
+  Just a -> (a,fs)
+  Nothing -> (Fun (Img 0 0 []) "ERROR_NO_FUNCTION" (Frame 0 0 0 0) False,fs)
+
+evalArg :: Fun -> [Fun] -> Img -> [Char]
+evalArg (Fun _ _ _ False) _ _ = f
+evalArg (Fun _ f arg _) fs i = concat [f," ",eval i arg fs]
+
+execF :: [Char] -> [Char]
+execF = id
 
 toImgs :: [[Char]] -> [Img]
 toImgs = flip toImgs' []
@@ -42,6 +61,9 @@ extr' (x,y,w,h) = map (\k -> take w $ drop x k) . take h . drop y
 
 extr :: (Int, Int, Int, Int) -> Img -> Img
 extr (x,y,w,h) (Img bw bh dat) = Img w h (extr' (x,y,w,h) dat)
+
+extrf :: Frame -> Img -> Img
+extrf (Frame x y w h) = extr (x,y,w,h)
 
 mtob :: Maybe Bool -> Bool
 mtob (Just a) = a
