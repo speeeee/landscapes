@@ -2,12 +2,13 @@ import System.Process
 import GHC.IO.Handle
 import Control.Applicative
 import Data.List.Split
+import Data.List (find)
 
 data Img = Img Int Int [[[Int]]] deriving (Show,Eq)
-data Frame = Int Int Int Int deriving (Show,Eq)
-data Fun = Img [Char] Frame Bool deriving (Show,Eq) -- the Bool is to confirm dead-end
+data Frame = Frame Int Int Int Int [Int] deriving (Show,Eq)
+data Fun = Fun Img [Char] Frame Bool deriving (Show,Eq) -- the Bool is to confirm dead-end
 
-funs = ["+",":"]
+funs = ["+",":","I@","ERROR_NO_FUNCTION"]
 
 main = do
   (_,Just plst,_,_) <-
@@ -18,31 +19,48 @@ main = do
   putStrLn $ show e
 
 -- WIP
-{--- function will be cleaned.
+-- function will be cleaned.
+{-eval :: Img -> Frame -> [Fun] -> [Char]
+eval i f fs = eval' i f fs i
+eval' :: Img -> Frame -> [Fun] -> Img -> [Char]
+eval' = uncurry execF . uncurry toF . flip extrf-}
 eval :: Img -> Frame -> [Fun] -> [Char]
-eval i f fs = eval' i f fs i f
-eval' :: Img -> Frame -> [Fun] -> Img -> Frame -> [Char]
-eval' = uncurry execF . uncurry toF . flip extrf
+eval i f fs = uncurry execF (uncurry toF (extrf f i) fs) i
 
 toF :: Frame -> Img -> [Fun] -> (Fun,[Fun])
-toF fr (Img w h d) fs = case find (flip imgCmpS (Img w h d)) fs of
-  Just (Fun (Img wi hi _) p f g) -> (Fun (Img w h d) p (fsc (w/wi) (h/hi) fr) g,fs)
-  Nothing -> (Fun (Img 0 0 []) "ERROR_NO_FUNCTION" (Frame 0 0 0 0) False,fs)
+toF (Frame fx fy fw fh c) (Img w h d) fs = 
+  case find (\(Fun i _ _ _) -> imgCmpS (Img w h d) i c) fs of
+    Just (Fun (Img wi hi _) p f g) -> 
+      (Fun (Img w h d) p (fsc (w`div`wi) (h`div`hi) (Frame fx fy fw fh c)) g,fs)
+    Nothing -> (Fun (Img 0 0 []) "ERROR_NO_FUNCTION" (Frame 0 0 0 0 []) False,fs)
 
-evalArg :: Fun -> [Fun] -> Img -> Frame -> [Char]
+{-evalArg :: Fun -> [Fun] -> Img -> Frame -> [Char]
 evalArg (Fun _ _ _ _ False) _ _ _ = f
-evalArg (Fun _ f arg (sx,sy) _) fs i fr = concat [f," ",eval i arg fs]
+evalArg (Fun _ f arg (sx,sy) _) fs i fr = concat [f," ",eval i arg fs]-}
 
--- + : I@ -1 0 1 1 list I@ 1 0 1 1
-execF :: Fun -> [Fun] -> [Char]
-execF (Fun _ p f _) fs = groupF $ words p
+-- + : I@ -1 0 1 1 list I@ 1 0 1 1 <- reverse
+execF :: Fun -> [Fun] -> Img -> [Char]
+execF (Fun _ p f _) fs bg = concat $ callF fs f bg $ words p
+
+callF :: [Fun] -> Frame -> Img -> [[Char]] -> [[Char]]
+callF fs fr bg = 
+  foldr (\k n -> if k`elem`funs then prim k n fs bg fr else k:n) []
+
+prim :: [Char] -> [[Char]] -> [Fun] -> Img -> Frame -> [[Char]]
+prim k n fs i (Frame x y w h _) {- pos -} = case k of
+  "+"  -> let (q:p:_) = map (\e -> read e::Int) $ take 2 n
+          in (show $ q+p):(drop 2 n)
+  ":"  -> (concat [n!!0,",",n!!1]):(drop 2 n)
+  "I@" -> let (xi:yi:wi:hi:r:g:b:_) = map (\e -> read e::Int) $ take 7 n
+          in eval i (Frame (xi*w+x) (yi*h+x) (wi*w) (hi*h) [r,g,b,255]) fs:drop 7 n
+  _    -> n
 
 -- + (: (I@ -1 0 1 1 (list I@ 1 0 1 1)))
-groupF :: [Char] -> [[Char]]
-groupF = foldr (\(k,(n:ns)) -> if k`elem`funs then []:n:ns else (k:n):ns)
+--groupF :: [[Char]] -> [[Char]]
+--groupF = foldr (\k (n:ns) -> if k`elem`funs then []:n:ns else (k:n):ns) []
 
 fsc :: Int -> Int -> Frame -> Frame
-fsc w h (Frame xi yi wi hi) = (Frame xi yi (wi*w) (hi*h))-}
+fsc w h (Frame xi yi wi hi c) = (Frame xi yi (wi*w) (hi*h) c)
 
 toImgs :: [[Char]] -> [Img]
 toImgs = flip toImgs' []
@@ -74,7 +92,7 @@ extr :: (Int, Int, Int, Int) -> Img -> Img
 extr (x,y,w,h) (Img bw bh dat) = Img w h (extr' (x,y,w,h) dat)
 
 extrf :: Frame -> Img -> (Frame,Img)
-extrf (Frame x y w h) = ((,) (Frame x y w h)) . extr (x,y,w,h)
+extrf (Frame x y w h c) = ((,) (Frame x y w h c)) . extr (x,y,w,h)
 
 mtob :: Maybe Bool -> Bool
 mtob (Just a) = a
