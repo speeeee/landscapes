@@ -4,6 +4,8 @@ import Control.Applicative
 import Data.List.Split
 import Data.List (find)
 
+-- TODO: write-up imports (static-only) .nincs files.
+
 data Img = Img Int Int [[[Int]]] deriving (Show,Eq)
 data Frame = Frame Int Int Int Int [Int] deriving (Show,Eq)
 data Fun = Fun Img [Char] Frame Bool deriving (Show,Eq) -- the Bool is to confirm dead-end
@@ -14,9 +16,16 @@ main = do
   (_,Just plst,_,_) <-
     createProcess (proc "./char_read" []) { std_out = CreatePipe }
   c <- hGetContents plst
+  e <- splitOn "x" <$> readFile "fs.nincs"
   let (g:b:_) = toImgs $ words c
       e = imgCmpS g (extr (1,1,3,3) b) [0,249,0,255]
   putStrLn $ show e
+  -- eval (last ii) (Frame 1 1 3 3 [0,249,0,255]) (mkFuns e $ init ii)
+  --   where ii = toImgs $ words c
+
+mkFuns :: [[Char]] -> [Img] -> [Fun]
+mkFuns cc = map (\(c,i) -> Fun i (concat $ tail $ words c)
+                            (Frame 0 0 0 0 (map (\e -> read e::Int) $ splitOn "," $ head $ words c)) False) . zip cc
 
 -- WIP
 -- function will be cleaned.
