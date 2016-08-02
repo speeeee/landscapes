@@ -36,7 +36,11 @@ void pr_img(img a) { printf("%i ",a.w); printf("%i ",a.h);
 
 // simple comparison main
 int main(int argc,char **argv) {
-  FILE *g = fopen("prog.bmp","rb");
+  if(argc<3) { printf("Enter at least two .bmp files (all functions and then the program image)."); exit(0); }
+  else { FILE **f = malloc(argc*sizeof(FILE *));
+    for(int i=1;i<argc;i++) { f[i] = fopen(argv[i],"rb");
+      pr_img(read_img(f[i])); fclose(f[i]); } } return 0; }
+ /* FILE *g = fopen("prog.bmp","rb");
   img bg = read_img(g); //printf("%i\n",(int)bg.dat[2].g);
   fclose(g); FILE *e = fopen("graph.bmp","rb"); img gr = read_img(e); fclose(e);
-  pr_img(gr); pr_img(bg); return 0; }
+  pr_img(gr); pr_img(bg); return 0; }*/
