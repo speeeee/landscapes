@@ -17,16 +17,20 @@ data Fun = Fun Img [Char] Frame [Int] Bool deriving (Show,Eq) -- the Bool is to 
 funs = ["+",":","I@","ERROR_NO_FUNCTION"]
 
 main = do
-  a <- getArgs
-  e <- splitOn " @" <$> (readFile $ head a)
+  (p:f:is) <- getArgs
+  e <- splitOn " @" <$> (readFile $ p)
   (_,Just plst,_,_) <-
-    createProcess (proc "./char_read" (tail a)) { std_out = CreatePipe }
+    createProcess (proc "./char_read" is) { std_out = CreatePipe }
   c <- hGetContents plst
   -- e <- splitOn "@" <$> readFile "fs.nincs"
   -- let (g:b:_) = toImgs $ words c
   --    e = imgCmpS g (extr (1,1,3,3) b) [0,249,0,255]
   let ii = toImgs $ words c
-  putStrLn $ eval (last ii) (Frame 4 2 3 3) (mkFuns e $ init ii)
+  putStrLn $ eval (last ii) (mkFrame f) (mkFuns e $ init ii)
+
+mkFrame :: [Char] -> Frame
+mkFrame c = let (x:y:w:h:_) = map (\e -> read e::Int) $ splitOn "," c 
+  in Frame x y w h
 
 concatS :: [[Char]] -> [Char]
 concatS = intercalate " "
