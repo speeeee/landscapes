@@ -1,8 +1,10 @@
 import System.Process
+import System.Environment (getArgs)
 import GHC.IO.Handle
 import Control.Applicative
 import Data.List.Split
-import Data.List (find)
+import Data.List (find,intercalate)
+import Data.ByteString.Char8 (unpack)
 
 import Debug.Trace
 
@@ -15,17 +17,22 @@ data Fun = Fun Img [Char] Frame [Int] Bool deriving (Show,Eq) -- the Bool is to 
 funs = ["+",":","I@","ERROR_NO_FUNCTION"]
 
 main = do
+  a <- getArgs
+  e <- splitOn " @" <$> (readFile $ head a)
   (_,Just plst,_,_) <-
-    createProcess (proc "./char_read" []) { std_out = CreatePipe }
+    createProcess (proc "./char_read" (tail a)) { std_out = CreatePipe }
   c <- hGetContents plst
-  e <- splitOn "@" <$> readFile "fs.nincs"
+  -- e <- splitOn "@" <$> readFile "fs.nincs"
   -- let (g:b:_) = toImgs $ words c
   --    e = imgCmpS g (extr (1,1,3,3) b) [0,249,0,255]
   let ii = toImgs $ words c
-  putStrLn $ eval (last ii) (Frame 1 1 3 3) (mkFuns e $ init ii)
+  putStrLn $ eval (last ii) (Frame 4 2 3 3) (mkFuns e $ init ii)
+
+concatS :: [[Char]] -> [Char]
+concatS = intercalate " "
 
 mkFuns :: [[Char]] -> [Img] -> [Fun]
-mkFuns cc = map (\(c,i) -> Fun i (concat $ tail $ words c)
+mkFuns cc = map (\(c,i) -> Fun i (concatS $ tail $ words c)
                              (Frame 1 1 1 1) (map (\e -> read e::Int) $ splitOn "," $ head $ words c) False) . zip cc
 
 -- WIP
@@ -38,9 +45,9 @@ eval :: Img -> Frame -> [Fun] -> [Char]
 eval i f fs = uncurry execF (uncurry toF (extrf f i) fs) i
 
 toF :: Frame -> Img -> [Fun] -> (Fun,[Fun])
-toF (Frame fx fy fw fh) (Img w h d) fs = 
+toF (Frame fx fy fw fh) (Img w h d) fs =
   case find (\(Fun i _ _ c _) -> imgCmpS i (Img w h d) c) fs of
-    Just (Fun (Img wi hi _) p f c g) -> 
+    Just (Fun (Img wi hi _) p f c g) ->
       (Fun (Img w h d) p (fsc (w`div`wi) (h`div`hi) (Frame fx fy fw fh)) c g,fs)
     Nothing -> (Fun (Img 0 0 []) "ERROR_NO_FUNCTION" (Frame 0 0 0 0) [] False,fs)
 
@@ -50,10 +57,10 @@ evalArg (Fun _ f arg (sx,sy) _) fs i fr = concat [f," ",eval i arg fs]-}
 
 -- + : I@ -1 0 1 1 list I@ 1 0 1 1 <- reverse
 execF :: Fun -> [Fun] -> Img -> [Char]
-execF (Fun _ p f _ _) fs bg = concat $ callF fs f bg $ words p
+execF (Fun _ p f _ _) fs bg = concatS $ callF fs f bg $ words p
 
 callF :: [Fun] -> Frame -> Img -> [[Char]] -> [[Char]]
-callF fs fr bg = 
+callF fs fr bg =
   foldr (\k n -> if k`elem`funs then prim k n fs bg fr else k:n) []
 
 prim :: [Char] -> [[Char]] -> [Fun] -> Img -> Frame -> [[Char]]
@@ -62,7 +69,7 @@ prim k n fs i (Frame x y w h) {- pos -} = case k of
           in (show $ q+p):(drop 2 n)
   ":"  -> (concat [n!!0,",",n!!1]):(drop 2 n)
   "I@" -> let (xi:yi:wi:hi:_) = map (\e -> read e::Int) $ take 4 n
-          in eval i (Frame (xi*w+x) (yi*h+x) (wi*w) (hi*h)) fs:drop 4 n
+          in eval i (Frame (xi*w+x) (yi*h+y) (wi*w) (hi*h)) fs:drop 4 n
   _    -> n
 
 -- + (: (I@ -1 0 1 1 (list I@ 1 0 1 1)))
@@ -70,7 +77,7 @@ prim k n fs i (Frame x y w h) {- pos -} = case k of
 --groupF = foldr (\k (n:ns) -> if k`elem`funs then []:n:ns else (k:n):ns) []
 
 fsc :: Int -> Int -> Frame -> Frame
-fsc w h (Frame xi yi wi hi) = (Frame xi yi (wi*w) (hi*h))
+fsc w h (Frame xi yi wi hi) = (Frame xi yi w h)
 
 toImgs :: [[Char]] -> [Img]
 toImgs = flip toImgs' []
