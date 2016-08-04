@@ -68,13 +68,15 @@ callF fs fr bg =
   foldr (\k n -> if k`elem`funs then prim k n fs bg fr else k:n) []
 
 prim :: [Char] -> [[Char]] -> [Fun] -> Img -> Frame -> [[Char]]
-prim k n fs i (Frame x y w h) {- pos -} = case k of
-  "+"  -> let (q:p:_) = map (\e -> read e::Int) $ take 2 n
-          in (show $ q+p):(drop 2 n)
-  ":"  -> (concat [n!!0,",",n!!1]):(drop 2 n)
-  "I@" -> let (xi:yi:wi:hi:_) = map (\e -> read e::Int) $ take 4 n
-          in eval i (Frame (xi*w+x) (yi*h+y) (wi*w) (hi*h)) fs:drop 4 n
-  _    -> n
+prim k n fs i (Frame x y w h) {- pos -}
+  | k`elem`["+","-","*","/"] = case find ((k==) . fst) [("+",(+)),("-",(-)),("*",(*)),("/",div)] of
+      Just (_,f) -> let (q:p:_) = map (\e -> read e::Int) $ take 2 n
+                    in (show $ q`f`p):(drop 2 n)
+      Nothing    -> n
+  | k==":"  = (concat [n!!0,",",n!!1]):(drop 2 n)
+  | k=="I@" = let (xi:yi:wi:hi:_) = map (\e -> read e::Int) $ take 4 n
+              in eval i (Frame (xi*w+x) (yi*h+y) (wi*w) (hi*h)) fs:drop 4 n
+  | otherwise = n
 
 -- + (: (I@ -1 0 1 1 (list I@ 1 0 1 1)))
 --groupF :: [[Char]] -> [[Char]]
