@@ -4,11 +4,14 @@ import GHC.IO.Handle
 import Control.Applicative
 import Data.List.Split
 import Data.List (find,intercalate)
-import Data.ByteString.Char8 (unpack)
+import qualified Data.ByteString.Lazy.Char8 as C
+import qualified Data.ByteString.Lazy as B
+import Data.Binary
+import Data.Char
 
 import Debug.Trace
 
--- TODO: write-up imports (static-only) .nincs files.
+-- 32i|33i|+s
 
 data Img = Img Int Int [[[Int]]] deriving (Show,Eq)
 data Frame = Frame Int Int Int Int deriving (Show,Eq)
@@ -26,7 +29,14 @@ main = do
   -- let (g:b:_) = toImgs $ words c
   --    e = imgCmpS g (extr (1,1,3,3) b) [0,249,0,255]
   let ii = toImgs $ words c
-  putStrLn $ eval (last ii) (mkFrame f) (mkFuns e $ init ii)
+  C.putStrLn $ toBS $ eval (last ii) (mkFrame f) (mkFuns e $ init ii)
+
+toBS :: [Char] -> B.ByteString
+toBS = B.concat . map (\k -> case last k of
+                              'i' -> encode (read (init k) :: Int)
+                              'f' -> encode (read (init k) :: Double)
+                              's' -> encode (chr (read (init k) :: Int))
+                              _   -> C.pack k) . splitOneOf "| "
 
 mkFrame :: [Char] -> Frame
 mkFrame c = let (x:y:w:h:_) = map (\e -> read e::Int) $ splitOn "," c 
@@ -73,7 +83,7 @@ prim k n fs i (Frame x y w h) {- pos -}
       Just (_,f) -> let (q:p:_) = map (\e -> read e::Int) $ take 2 n
                     in (show $ q`f`p):(drop 2 n)
       Nothing    -> n
-  | k==":"  = (concat [n!!0,",",n!!1]):(drop 2 n)
+  | k==":"  = (concat [n!!1,n!!0]):(drop 2 n)
   | k=="I@" = let (xi:yi:wi:hi:_) = map (\e -> read e::Int) $ take 4 n
               in eval i (Frame (xi*w+x) (yi*h+y) (wi*w) (hi*h)) fs:drop 4 n
   | otherwise = n
