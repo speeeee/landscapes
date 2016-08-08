@@ -17,37 +17,58 @@
 #define OUT  0
 #define END  1
 #define DEF  2
-#define DATA 3
-#define CALL 4
-#define PACK 5
+#define FUN  3
+#define DATA 4
+#define CALL 5
+#define PACK 6
+#define PUSH32 7
+#define PUSH64 8
+#define FEND 9
 
 #define FUN 0
 #define DAT 1
+#define PRI 2
 
 // data won't actively be loaded, but instead put on the table.
 
 // 'f' is either data or function pointer.  Can deduce from table.
-typedef struct Stk { int8_t op; int32_t f; int32_t *p; int asz; struct *Stk p; } Stk;
+typedef struct Stk { Data d; int type; struct *Stk p; } Stk;
 typedef struct { Stk *s; int sz; } SInf;
-typedef struct { uint64_t loc; uint32_t sz; } Data;
+typedef struct { long loc; uint32_t sz; } Data;
 
-typedef struct { SInf f; Data d; uintint8_t type; } Fun;
+typedef struct { SInf f; uint8_t type; } Fun;
 
-SInf stk;
+SInf stk; Fun *funs; int fsz = 0;
 
-void push(int8_t op, int32_t f) { Stk *x = malloc(sizeof(Stk));
-  x->op = op; x->f = f; x->p = NULL; x->asz = 0; x->p = NULL;
+void push(Data d, int t) { Stk *x = malloc(sizeof(Stk)); x->p = NULL;
   if(stk.s) { x->p = stk.s; } stk.s = x; }
 void compose(int8_t op, int32_t f) { push(op,f); }
 
-void read_f(SNDFILE *f, FILE *in, int8_t fun) { int c;
-  while((c = fgetc(c,in))!=END) {
-    if(c==DEF) { SInf x = (SInf) { SInf.s, SInf.sz }; new_f(x); }
-    else if(c==DATA) { uint64_t l; uint32_t sz; fread(&l,sizeof(uint64_t),1,in);
-      fread(&sz,sizeof(uint32_t),1,in); new_d(l,sz); }
-    else { compose(c,-1); } } }
+Data data(long l, uint32_t sz) { return (Data) { l, sz }; }
 
-int main (int argc, char **argv) { SNDFILE *file;
+void fun_f(int32_t, uint32_t, FILE *);
+void prim_f(int8_t,  uint32_t, FILE *);
+
+eval(FILE *in, SNDFILE *f);
+
+void call_f(int32_t f, int32_t d, FILE *in, SNDFILE *f) {
+  // map (a . b . c) d
+  Fun e = funs[f]; Data d = funs[d].d;
+  int sto = ftell(in); fseek(d.loc,SEEK_CUR,in);
+  fun_f(e,d.sz,in); fseek(sto,SEEK_CUR,in); }
+void fun_f(Fun e, int32_t sz, FILE *in) { Stk *fe = e.f;
+  for(int i=0;i<sz;i++) { eval(fe,sz,in); } }
+
+void read_f(SNDFILE *f, FILE *in, int8_t fun) { int c;
+  while((c = fgetc(c,in))!=END) { switch(c) {
+    case DEF: new_f(); break; case PUSH32: push(data(ftell(in),4),DAT); break;
+    case PUSH64: push(data(ftell(in),8),DAT); break;
+    case DATA: { uint32_t s; fread(&s,sizeof(uint32_t),1,in);
+                 push(data(ftell(in),s),DAT); }
+    case CALL: eval(in,f); break;
+    default: push(data(0,0),PRI); } }
+
+int main(int argc, char **argv) { SNDFILE *file;
   SF_INFO sfinfo; int k; int *buffer;
 
   if (!(buffer = malloc (2 * SAMPLE_COUNT * sizeof (int)))) {
