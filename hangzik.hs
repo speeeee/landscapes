@@ -36,9 +36,10 @@ drip :: a -> [b] -> [(a,b)]
 drip f = map (\k -> (f,k))
 
 lexe :: [Char] -> [[Char]]
-lexe = chop (\xl@(x:_) -> if | x`elem`spc  -> span (' '==) xl
-                             | x=='"'  -> span ('"'==) xl
-                             | otherwise -> span (' '/=) xl)
+lexe = filter (not . null) .
+  chop (\xl@(x:_) -> if | x`elem`spc  -> ("",tail xl)
+                        | x=='"'  -> span ('"'==) xl
+                        | otherwise -> span (' '/=) xl)
 
 -- function to be removed.
 replace :: Char -> Char -> [Char] -> [Char]
