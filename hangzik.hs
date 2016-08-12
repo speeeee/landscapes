@@ -3,7 +3,7 @@
 import System.Environment (getArgs)
 import Control.Applicative
 import Data.List.Split
-import Data.List (find)
+import Data.List (find,intercalate)
 
 import Debug.Trace
 
@@ -21,25 +21,29 @@ prims fs =
   ,Fun "!" [] (\(q:n) -> parse (tok q) (fs,n))
   ,Fun "?" [] (\(qt:qf:c:n) -> (if c=="True" then qt else qf):n)
   ,Fun "sw" [] (\(a:b:n) -> b:a:n), Fun "dr" [] tail
-  ,Fun "du" [] (\(a:n) -> a:a:n), Fun "pick" [] (\(a:b:c:n) -> c:a:b:c:n)]
+  ,Fun "du" [] (\(a:n) -> a:a:n), Fun "pick" [] (\(a:b:c:n) -> c:a:b:c:n)
+  ,Fun "DEF" [] id]
 
 tok :: [Char] -> [[Char]]
 tok = reverse . lexe . replace '|' '"'
 
 main = do
   (i:o:_) <- getArgs
-  (concat <$> (flip parse (prims [],[]) <$> 
-    (reverse <$> (lexe <$> readFile i))))
+  (intercalate " " <$> (reverse <$> (flip parse (prims [],[]) <$> 
+    (reverse <$> (lexe <$> readFile i)))))
     >>= writeFile o
 
 drip :: a -> [b] -> [(a,b)]
 drip f = map (\k -> (f,k))
 
+shl :: ([a],[a]) -> ([a],[a])
+shl (a,e:b) = (a++[e],b)
+
 lexe :: [Char] -> [[Char]]
 lexe = filter (not . null) .
-  chop (\xl@(x:_) -> if | x`elem`spc  -> ("",tail xl)
-                        | x=='"'  -> span ('"'==) xl
-                        | otherwise -> span (' '/=) xl)
+  chop (\xl@(x:xs) -> if | x`elem`spc  -> ("",tail xl)
+                         | x=='"'  -> let (a,b) = span ('"'/=) xs in (a,tail b)
+                         | otherwise -> span (' '/=) xl)
 
 -- function to be removed.
 replace :: Char -> Char -> [Char] -> [Char]
