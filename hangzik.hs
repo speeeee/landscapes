@@ -26,6 +26,7 @@ prims fs =
   ,Fun "sig" [] (\(a:n) -> (show $ signum (read a::Int)):n)
   ,Fun "sw" [] (\(a:b:n) -> b:a:n), Fun "dr" [] tail
   ,Fun "du" [] (\(a:n) -> a:a:n), Fun "pick" [] (\(a:b:c:n) -> c:a:b:c:n)
+  ,Fun "null?" [] (\b -> if null b then ["True"] else "False":b)
   ,Fun "DEF" [] id]
 
 tok :: [Char] -> [[Char]]
@@ -69,6 +70,7 @@ lexe :: [Char] -> [[Char]]
 lexe = filter (not . null) .
   chop (\xl@(x:xs) -> if | x`elem`spc  -> ("",tail xl)
                          | x=='"'  -> takeStr ([],xs)
+                         | x=='{'  -> takeQuo 1 ([],xs)
                          | otherwise -> span (' '/=) xl)
 
 {-takeStr :: [Char] -> ([Char],[Char])
@@ -80,12 +82,17 @@ takeStr = chop (\xl@(x:xs) -> if | x`elem`spc -> (" ",xs)
                                  | x=='"' -> -}
 
 takeStr :: ([Char],[Char]) -> ([Char],[Char])
-takeStr (a,('\\':b:xs)) = takeStr $ 
+takeStr (a,('\\':b:xs)) = takeStr $
   case b of 'n' -> (a++['\n'],xs)
             't' -> (a++['\t'],xs)
             _   -> (a++[b],xs)
 takeStr (a,('"':xs)) = (a,xs)
 takeStr (a,x) = takeStr $ shl (a,x)
+
+takeQuo :: Int -> ([Char],[Char]) -> ([Char],[Char])
+takeQuo e (a,'{':xs) = takeQuo (e+1) $ (a++['{'],xs)
+takeQuo e (a,'}':xs) = if e == 1 then (a,xs) else takeQuo (e-1) $ (a++['}'],xs)
+takeQuo e a = takeQuo e $ shl a
 
 -- function to be removed.
 replace :: Char -> Char -> [Char] -> [Char]
