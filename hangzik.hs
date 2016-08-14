@@ -3,7 +3,8 @@
 import System.Environment (getArgs)
 import Control.Applicative
 import Data.List.Split
-import Data.List (find,intercalate,union)
+import Data.List (find,intercalate,union,uncons)
+import Data.Foldable (foldlM)
 import System.Directory (doesFileExist)
 
 import Debug.Trace
@@ -32,8 +33,15 @@ tok = reverse . lexe . replace '|' '"'
 
 main = do
   (o:i:_) <- getArgs
-  --imps <- getImports [i]
-  (intercalate " " <$> reverse <$> snd <$> inF (i++".hz")) >>= writeFile o
+  imps <- getImports [i]
+  (intercalate " " <$> reverse <$> snd <$> allIn imps) >>= writeFile o
+
+allIn :: [[Char]] -> IO ([Fun],[[Char]])
+allIn = 
+  foldlM (\n k -> inF (k++".hz") n) ([],[])
+
+merge :: ([Fun],[[Char]]) -> ([Fun],[[Char]]) -> ([Fun],[[Char]])
+merge (a,b) (c,d) = (a++c,b++d)
 
 getImports :: [[Char]] -> IO [[Char]]
 --getImports i = do
@@ -47,8 +55,9 @@ getImports f = do
            else return [k]) f
   if a==f then return a else getImports a
 
-inF :: [Char] -> IO ([Fun],[[Char]])
-inF i = flip parse (prims [],[]) <$> reverse <$> lexe <$> readFile i
+inF :: [Char] -> ([Fun],[[Char]]) -> IO ([Fun],[[Char]])
+inF i (f,s) = flip parse (f,s) 
+  <$> reverse <$> lexe <$> readFile i
 
 drip :: a -> [b] -> [(a,b)]
 drip f = map (\k -> (f,k))
