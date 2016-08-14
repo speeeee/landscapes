@@ -68,8 +68,24 @@ shl (a,e:b) = (a++[e],b)
 lexe :: [Char] -> [[Char]]
 lexe = filter (not . null) .
   chop (\xl@(x:xs) -> if | x`elem`spc  -> ("",tail xl)
-                         | x=='"'  -> let (a,b) = span ('"'/=) xs in (a,tail b)
+                         | x=='"'  -> takeStr ([],xs)
                          | otherwise -> span (' '/=) xl)
+
+{-takeStr :: [Char] -> ([Char],[Char])
+takeStr = chop (\xl@(x:xs) -> if | x`elem`spc -> (" ",xs)
+                                 | x=='\\' -> case splitAt 1 xs of
+                                              ("n",y) -> ("\n",y)
+                                              ("t",y) -> ("\t",y)
+                                              a -> a
+                                 | x=='"' -> -}
+
+takeStr :: ([Char],[Char]) -> ([Char],[Char])
+takeStr (a,('\\':b:xs)) = takeStr $ 
+  case b of 'n' -> (a++['\n'],xs)
+            't' -> (a++['\t'],xs)
+            _   -> (a++[b],xs)
+takeStr (a,('"':xs)) = (a,xs)
+takeStr (a,x) = takeStr $ shl (a,x)
 
 -- function to be removed.
 replace :: Char -> Char -> [Char] -> [Char]
