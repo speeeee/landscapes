@@ -13,7 +13,9 @@
 #define	SAMPLE_COUNT (SAMPLE_RATE)
 
 typedef struct { sf_count_t l; int *s; } Samp;
-typedef struct { int n; Samp *dat; } SampSeq;
+typedef struct { int n; Samp *dat; } SampArr;
+typedef struct SampE { Samp sa; struct SampE *next; } SampE;
+typedef struct { SampE *s; int sz; } SampLst;
 
 // sqrt(octave_interval,tones/octave) => sqrt(2,12) = 1 semitone interval
 // this function is fairly naive.
@@ -21,11 +23,25 @@ Samp pitch(Samp buf, float ratio) { Samp buf2; buf2.l = ceil((float)buf.l/ratio)
   buf2.s = malloc(buf2.l*sizeof(int)); float e = 0;
   for(int i=0;i<buf2.l;i++) { buf2.s[i] = buf.s[(int)e]; e+=ratio; } return buf2; }
 
-SampSeq sc_edo(Samp key, float ratio, int notes) {
-  SampSeq s; s.dat = malloc(notes*sizeof(Samp)); s.n = notes;
+SampArr sc_edo(Samp key, float ratio, int notes) {
+  SampArr s; s.dat = malloc(notes*sizeof(Samp)); s.n = notes;
   for(int i=0;i<notes;i++) { s.dat[i] = pitch(key,pow(pow(ratio,1.0/notes),i)); }
   return s; }
 
+Samp pad(Samp a,sf_count_t nl) { Samp b; b.l = nl;
+  b.s = malloc(nl*sizeof(int));
+  for(int i=0;i<nl;i++) { if(i<b.l) { b.s[i] = a.s[i]; } else { b.s[i] = 0; } } return b; }
+
+SampArr pad_s(SampArr a, sf_count_t nl) { SampArr an; an.n = a.n;
+  an.dat = malloc(a.n*sizeof(Samp));
+  for(int i=0;i<a.n;i++) { pad(a.dat[i],nl); } return an; }
+
+// Sample b MUST not be larger than Sample a.
+Samp para(Samp a, Samp b, int pos) { Samp c; c.s = malloc(a.l*sizeof(int));
+  memcpy(c.s,a.s,a.l*sizeof(int)); c.l = a.l; 
+  for(int i=pos;i<b.l+pos;i++) { c.s[i] = c.s[i]+b.s[i-pos]; }
+  return c; }
+  
 // purposefully specific to "key.wav".
 int *init_key(sf_count_t sc) { int *buffer = malloc(SAMPLE_COUNT*sizeof(int));
   SF_INFO sfin; memset(&sfin, 0, sizeof(sfin)); SNDFILE *in;
@@ -38,10 +54,10 @@ int *init_key(sf_count_t sc) { int *buffer = malloc(SAMPLE_COUNT*sizeof(int));
 
 void play(SNDFILE *out, sf_count_t c, Samp s) {
   if(sf_write_int(out,s.s,c*s.l) != c*s.l) { puts(sf_strerror(out)); } }
-void play_s(SNDFILE *out, sf_count_t c, SampSeq s) {
+void play_s(SNDFILE *out, sf_count_t c, SampArr s) {
   for(int i=0;i<s.n;i++) { play(out,c,s.dat[i]); } }
 
-void ss_free(SampSeq s) { for(int i=0;i<s.n;i++) { free(s.dat[i].s); } free(s.dat); }
+void ss_free(SampArr s) { for(int i=0;i<s.n;i++) { free(s.dat[i].s); } free(s.dat); }
 
 int main(int argc, char **argv) { SNDFILE *out;
   SF_INFO sfout; int k;
@@ -53,7 +69,7 @@ int main(int argc, char **argv) { SNDFILE *out;
   memset(&sfout, 0, sizeof(sfout));
 
   sfout.samplerate = SAMPLE_RATE;
-  sfout.frames = SAMPLE_COUNT*34;
+  sfout.frames = SAMPLE_COUNT;
   sfout.channels = 1;
   sfout.format = (SF_FORMAT_WAV | SF_FORMAT_PCM_16);
 
@@ -61,21 +77,25 @@ int main(int argc, char **argv) { SNDFILE *out;
 
   // sequences of 12-EDO, 24-EDO, and 31-EDO.
   // tempo rises as pitch rises since the notes are not padded.
-  SampSeq e = sc_edo(s,2,12);
-  SampSeq f = sc_edo(s,2,24);
-  SampSeq d = sc_edo(s,2,31);
+  SampArr e = sc_edo(s,2,12);
+  SampArr f = sc_edo(s,2,24);
+  SampArr d = sc_edo(s,2,31);
+  //SampArr e = pad_s(de,44100);
+  Samp q = para(e.dat[0],e.dat[11],0);
 
   if (!(out = sf_open ("sine.wav", SFM_WRITE, &sfout))) {
     printf ("Error : Not able to open output file.\n");
     free(buffer); return 1; }
 
-  play_s(out,sfout.channels,e); play_s(out,sfout.channels,f);
-  play_s(out,sfout.channels,d);
+  play(out,sfout.channels,q);
+
+  //play_s(out,sfout.channels,e); play_s(out,sfout.channels,f);
+  //play_s(out,sfout.channels,d);
 
   //if (sfinfo.channels == 1) {
   //  for (k = 0 ; k < SAMPLE_COUNT ; k++) {
   //    buffer [k] = AMPLITUDE * sin (FREQ * 2 * k * M_PI); } }
 
   sf_close(out);
-  free(buffer); ss_free(e); ss_free(f); ss_free(d);
+  free(buffer); free(q.s); ss_free(e); ss_free(f); ss_free(d);
   return 0; }
