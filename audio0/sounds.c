@@ -17,6 +17,8 @@ typedef void (*FTy)(void *);
 void s_freev(void *); void ss_freev(void *);
 void none(void *a) { return; }
 
+int sign(int a) { return (a>0) - (a<0); }
+
 FTy typs[4] = { none, s_freev, ss_freev, free /* to be changed: SampLst */ };
 
 typedef struct { sf_count_t l; int *s; } Samp;
@@ -54,6 +56,8 @@ void s_free(Samp s) { free(s.s); }
 void ss_freev(void *s) { ss_free(*(SampArr *)s); }
 void s_freev(void *s) { s_free(*(Samp *)s); }
 
+/* == Sample manipulation ========== */
+
 // sqrt(octave_interval,tones/octave) => sqrt(2,12) = 1 semitone interval
 // this function is fairly naive.
 Samp pitch(Samp buf, float ratio) { Samp buf2; buf2.l = ceil((float)buf.l/ratio);
@@ -83,6 +87,17 @@ Samp reverse(Samp a) { Samp b; b.l = a.l; b.s = malloc(b.l*sizeof(int));
 Stk *reverses(Stk *x) { Samp s = reverse(*(Samp *)x->pt);
   return pushs(s,pop(x)); }
 
+  //if (sfinfo.channels == 1) {
+  //  for (k = 0 ; k < SAMPLE_COUNT ; k++) {
+  //    buffer [k] = AMPLITUDE * sin (FREQ * 2 * k * M_PI); } }
+Samp amp(Samp a, float perc) { Samp b; b.l = a.l; b.s = malloc(b.l*sizeof(int));
+  memcpy(b.s,a.s,b.l*sizeof(int));
+  for(int i=0;i<a.l;i++) { b.s[i] -= (int)b.s[i]*perc; } return b; }
+Stk *amps(Stk *x) { Samp b = amp(*(Samp *)x->pt,*(float *)x->prev->pt);
+  return pushs(b,pop(pop(x))); }
+
+/* == Rhythm & Compisition ========== */
+
 // Sample b MUST not be larger than Sample a.
 Samp para(Samp a, Samp b, int pos) { Samp c; c.s = malloc(a.l*sizeof(int));
   memcpy(c.s,a.s,a.l*sizeof(int)); c.l = a.l; 
@@ -100,7 +115,9 @@ Samp beat(Samp a, Samp b, sf_count_t dur) { Samp e = a;
 Stk *beats(Stk *x) { Samp s = beat(*(Samp *)x->pt,*(Samp *)x->prev->pt
                                   ,*(sf_count_t *)x->prev->prev->pt);
   return pushs(s,pop(pop(pop(x)))); }
-  
+
+/* == Main functions and IO ========== */
+
 // purposefully specific to "key.wav".
 int *init_key(sf_count_t sc) { int *buffer = malloc(SAMPLE_COUNT*sizeof(int));
   SF_INFO sfin; memset(&sfin, 0, sizeof(sfin)); SNDFILE *in;
@@ -131,7 +148,7 @@ int main(int argc, char **argv) { SNDFILE *out;
   memset(&sfout, 0, sizeof(sfout));
 
   sfout.samplerate = SAMPLE_RATE;
-  sfout.frames = SAMPLE_COUNT*4;
+  sfout.frames = SAMPLE_COUNT;
   sfout.channels = 1;
   sfout.format = (SF_FORMAT_WAV | SF_FORMAT_PCM_16);
 
@@ -142,33 +159,22 @@ int main(int argc, char **argv) { SNDFILE *out;
   /*SampArr e = sc_edo(s,2,12);
   SampArr f = sc_edo(s,2,24);
   SampArr d = sc_edo(s,2,31);*/
-  //SampArr e = pad_s(de,44100);
-  //Samp q = para(e.dat[0],e.dat[11],0);
-  //Samp p = para(q,e.dat[7],0);
-  /*Samp q = reverse(s);
-  Samp p = pitch(q,0.125);
-  Samp c = beat(p,s,44100);*/
-  //pushi(44100,stk); pushs(s,stk); pushf(0.125,stk); sget(1,stk); 
-  //reverses(stk); pitchs(stk);
 
-  stk = pitchs(reverses(sget(1,pushf(0.125,pushs(s,pushi(44100,stk))))));
-  stk = beats(sget(2,pushs(s,pushi(44100,stk))));
+  //stk = pitchs(reverses(sget(1,pushf(0.125,pushs(s,pushi(44100,stk))))));
+  //stk = beats(sget(2,pushs(s,pushi(44100,stk))));
 
   //stk = pitchs(reverses(pushs(s,pushf(0.125,stk))));
+  stk = amps(sget(1,pushf(0.5,pushs(s,stk))));
 
   if (!(out = sf_open ("sine.wav", SFM_WRITE, &sfout))) {
     printf ("Error : Not able to open output file.\n");
     free(buffer); return 1; }
 
-  play(out,sfout.channels,*(Samp *)stk->pt);
+  play(out,sfout.channels,*(Samp *)stk->pt); 
+  play(out,sfout.channels,*(Samp *)stk->prev->pt);
 
   //play_s(out,sfout.channels,e); play_s(out,sfout.channels,f);
   //play_s(out,sfout.channels,d);
 
-  //if (sfinfo.channels == 1) {
-  //  for (k = 0 ; k < SAMPLE_COUNT ; k++) {
-  //    buffer [k] = AMPLITUDE * sin (FREQ * 2 * k * M_PI); } }
-
-  sf_close(out); st_free(stk);
-  //free(buffer); free(q.s); free(p.s); //ss_free(e); ss_free(f); ss_free(d);
+  sf_close(out); st_free(stk);;
   return 0; }
