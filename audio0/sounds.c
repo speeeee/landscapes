@@ -12,37 +12,47 @@
 #define	SAMPLE_RATE 44100
 #define	SAMPLE_COUNT (SAMPLE_RATE)
 
+typedef void (*FTy)(void *);
+
+void s_freev(void *); void ss_freev(void *);
+void none(void *a) { return; }
+
+FTy typs[4] = { none, s_freev, ss_freev, free /* to be changed: SampLst */ };
+
 typedef struct { sf_count_t l; int *s; } Samp;
 typedef struct { int n; Samp *dat; } SampArr;
 typedef struct Meas { Samp sa; struct Meas *next; } Meas;
 typedef struct { Meas *s; int fpm; } SampLst;
 
-typedef struct Stk { void *pt; int *rc; struct Stk *prev; } Stk;
+typedef struct Stk { void *pt; FTy typ; int *rc; struct Stk *prev; } Stk;
 
-Stk *push(void *y,int *rc,Stk *x) { Stk *e = malloc(sizeof(Stk));
-  e->pt = y; e->rc = rc; e->prev = NULL;
+Stk *push(void *y,int *rc,FTy typ,Stk *x) { Stk *e = malloc(sizeof(Stk));
+  e->pt = y; e->rc = rc; e->prev = NULL; e->typ = typ;
   if(x) { e->prev = x; } x = e; return x; }
-Stk *pushr(void *y,Stk *x) { int *rc = malloc(sizeof(int)); *rc = 1;
-  return push(y,rc,x); }
+Stk *pushr(void *y,FTy typ,Stk *x) { int *rc = malloc(sizeof(int)); *rc = 1;
+  return push(y,rc,typ,x); }
 Stk *pop(Stk *x) { Stk *q = x->prev;
-  if(--(*(x->rc))<1) { free(x->pt); free(x->rc); } x = q; return x; }
+  if(--(*(x->rc))<1) { (x->typ)(x->pt); free(x->pt); free(x->rc); } x = q; return x; }
 //void dup(Stk *x) { push(x->y,x->rc,x); }
 Stk *sget(int q,Stk *x) { Stk *e = x; for(int i=0;i<q;i++) { e = e->prev; }
-  return push(e->pt,e->rc,x); }
+  *e->rc = *e->rc+1; return push(e->pt,e->rc,e->typ,x); }
 
 Stk *pushs(Samp e,Stk *x) { Samp *f = malloc(sizeof(Samp));
-  *f = e; return pushr((void *)f,x); }
+  *f = e; return pushr((void *)f,typs[1],x); }
 Stk *pushsa(SampArr e,Stk *x) { SampArr *f = malloc(sizeof(SampArr));
-  *f = e; return pushr((void *)f,x); }
+  *f = e; return pushr((void *)f,typs[2],x); }
 Stk *pushsl(SampLst e,Stk *x) { SampLst *f = malloc(sizeof(SampLst));
-  *f = e; return pushr((void *)f,x); }
+  *f = e; return pushr((void *)f,typs[3],x); }
 Stk *pushi(int e,Stk *x) { int *f = malloc(sizeof(int));
-  *f = e; return pushr((void *)f,x); }
+  *f = e; return pushr((void *)f,typs[0],x); }
 Stk *pushf(float e,Stk *x) { float *f = malloc(sizeof(float));
-  *f = e; return pushr((void *)f,x); }
+  *f = e; return pushr((void *)f,typs[0],x); }
 
 void ss_free(SampArr s) { for(int i=0;i<s.n;i++) { free(s.dat[i].s); } free(s.dat); }
 void s_free(Samp s) { free(s.s); }
+
+void ss_freev(void *s) { ss_free(*(SampArr *)s); }
+void s_freev(void *s) { s_free(*(Samp *)s); }
 
 // sqrt(octave_interval,tones/octave) => sqrt(2,12) = 1 semitone interval
 // this function is fairly naive.
@@ -106,6 +116,9 @@ void play(SNDFILE *out, sf_count_t c, Samp s) {
 void play_s(SNDFILE *out, sf_count_t c, SampArr s) {
   for(int i=0;i<s.n;i++) { play(out,c,s.dat[i]); } }
 
+void st_free(Stk *x) { if(x) { st_free(x->prev);
+  if(x->pt) { free(x->pt); } if(x->rc) { free(x->rc); } free(x); } }
+
 int main(int argc, char **argv) { SNDFILE *out;
   SF_INFO sfout; int k;
   SF_INFO sfin; SNDFILE *in;
@@ -141,6 +154,8 @@ int main(int argc, char **argv) { SNDFILE *out;
   stk = pitchs(reverses(sget(1,pushf(0.125,pushs(s,pushi(44100,stk))))));
   stk = beats(sget(2,pushs(s,pushi(44100,stk))));
 
+  //stk = pitchs(reverses(pushs(s,pushf(0.125,stk))));
+
   if (!(out = sf_open ("sine.wav", SFM_WRITE, &sfout))) {
     printf ("Error : Not able to open output file.\n");
     free(buffer); return 1; }
@@ -154,6 +169,6 @@ int main(int argc, char **argv) { SNDFILE *out;
   //  for (k = 0 ; k < SAMPLE_COUNT ; k++) {
   //    buffer [k] = AMPLITUDE * sin (FREQ * 2 * k * M_PI); } }
 
-  sf_close(out); //st_free(stk);
+  sf_close(out); st_free(stk);
   //free(buffer); free(q.s); free(p.s); //ss_free(e); ss_free(f); ss_free(d);
   return 0; }
