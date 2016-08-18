@@ -19,22 +19,27 @@ typedef struct { Meas *s; int fpm; } SampLst;
 
 typedef struct Stk { void *pt; int *rc; struct Stk *prev; } Stk;
 
-void push(void *y,int *rc,Stk *x) { Stk *e = malloc(sizeof(Stk));
-  e->pt = y; e->rc = malloc(sizeof(int)); e->rc = rc; 
-  if(x) { e->prev = x; } x = e; }
-void pushr(void *y,Stk *x) { int *rc = malloc(sizeof(int)); push(y,rc,x); }
-void pop(Stk *x) { Stk *q = x->prev;
-  if(--(*(x->rc))<1) { free(x->pt); free(x->rc); } x = q; }
+Stk *push(void *y,int *rc,Stk *x) { Stk *e = malloc(sizeof(Stk));
+  e->pt = y; e->rc = rc; e->prev = NULL;
+  if(x) { e->prev = x; } x = e; return x; }
+Stk *pushr(void *y,Stk *x) { int *rc = malloc(sizeof(int)); *rc = 1;
+  return push(y,rc,x); }
+Stk *pop(Stk *x) { Stk *q = x->prev;
+  if(--(*(x->rc))<1) { free(x->pt); free(x->rc); } x = q; return x; }
 //void dup(Stk *x) { push(x->y,x->rc,x); }
-void sget(int q,Stk *x) { Stk *e = x; for(int i=0;i<q;i++) { e = e->prev; }
-  push(e->pt,e->rc,x); }
+Stk *sget(int q,Stk *x) { Stk *e = x; for(int i=0;i<q;i++) { e = e->prev; }
+  return push(e->pt,e->rc,x); }
 
-void pushs(Samp e,Stk *x) { Samp *f = malloc(sizeof(Samp));
-  *f = e; pushr((void *)f,x); }
-void pushsa(SampArr e,Stk *x) { SampArr *f = malloc(sizeof(SampArr));
-  *f = e; pushr((void *)f,x); }
-void pushsl(SampLst e,Stk *x) { SampLst *f = malloc(sizeof(SampLst));
-  *f = e; pushr((void *)f,x); }
+Stk *pushs(Samp e,Stk *x) { Samp *f = malloc(sizeof(Samp));
+  *f = e; return pushr((void *)f,x); }
+Stk *pushsa(SampArr e,Stk *x) { SampArr *f = malloc(sizeof(SampArr));
+  *f = e; return pushr((void *)f,x); }
+Stk *pushsl(SampLst e,Stk *x) { SampLst *f = malloc(sizeof(SampLst));
+  *f = e; return pushr((void *)f,x); }
+Stk *pushi(int e,Stk *x) { int *f = malloc(sizeof(int));
+  *f = e; return pushr((void *)f,x); }
+Stk *pushf(float e,Stk *x) { float *f = malloc(sizeof(float));
+  *f = e; return pushr((void *)f,x); }
 
 void ss_free(SampArr s) { for(int i=0;i<s.n;i++) { free(s.dat[i].s); } free(s.dat); }
 void s_free(Samp s) { free(s.s); }
@@ -44,11 +49,16 @@ void s_free(Samp s) { free(s.s); }
 Samp pitch(Samp buf, float ratio) { Samp buf2; buf2.l = ceil((float)buf.l/ratio);
   buf2.s = malloc(buf2.l*sizeof(int)); float e = 0;
   for(int i=0;i<buf2.l;i++) { buf2.s[i] = buf.s[(int)e]; e+=ratio; } return buf2; }
+Stk *pitchs(Stk *x) { Samp s = pitch(*(Samp *)x->pt,*(float *)x->prev->pt);
+  return pushs(s,pop(pop(x))); }
 
 SampArr sc_edo(Samp key, float ratio, int notes) {
   SampArr s; s.dat = malloc(notes*sizeof(Samp)); s.n = notes;
   for(int i=0;i<notes;i++) { s.dat[i] = pitch(key,pow(pow(ratio,1.0/notes),i)); }
   return s; }
+Stk *sc_edos(Stk *x) { SampArr s = sc_edo(*(Samp *)x->pt,*(float *)x->prev->pt
+                                         ,*(int *)x->prev->prev->pt);
+  return pushsa(s,pop(pop(pop(x)))); }
 
 Samp pad(Samp a,sf_count_t nl) { Samp b; b.l = nl;
   b.s = malloc(nl*sizeof(int));
@@ -60,18 +70,26 @@ SampArr pad_s(SampArr a, sf_count_t nl) { SampArr an; an.n = a.n;
 
 Samp reverse(Samp a) { Samp b; b.l = a.l; b.s = malloc(b.l*sizeof(int));
   for(int i=0;i<b.l;i++) { b.s[i] = a.s[a.l-i-1]; } return b; }
+Stk *reverses(Stk *x) { Samp s = reverse(*(Samp *)x->pt);
+  return pushs(s,pop(x)); }
 
 // Sample b MUST not be larger than Sample a.
 Samp para(Samp a, Samp b, int pos) { Samp c; c.s = malloc(a.l*sizeof(int));
   memcpy(c.s,a.s,a.l*sizeof(int)); c.l = a.l; 
   for(int i=pos;i<b.l+pos;i++) { c.s[i] = c.s[i]+b.s[i-pos]; }
   return c; }
-Samp para_(Samp a, Samp b, int pos) { Samp c = para(a,b,pos);
-  s_free(a); s_free(b); return c; }
+Stk *paras(Stk *x) { Samp s = para(*(Samp *)x->pt,*(Samp *)x->prev->pt
+                                  ,*(int *)x->prev->prev->pt);
+  return pushs(s,pop(pop(pop(x)))); }
+//Samp para_(Samp a, Samp b, int pos) { Samp c = para(a,b,pos);
+//  s_free(a); s_free(b); return c; }
 
 // Sample b MUST not be larger than Sample a.
 Samp beat(Samp a, Samp b, sf_count_t dur) { Samp e = a;
   for(int i=0;i<a.l;i+=dur) { e = para(e,b,i); } return e; }
+Stk *beats(Stk *x) { Samp s = beat(*(Samp *)x->pt,*(Samp *)x->prev->pt
+                                  ,*(sf_count_t *)x->prev->prev->pt);
+  return pushs(s,pop(pop(pop(x)))); }
   
 // purposefully specific to "key.wav".
 int *init_key(sf_count_t sc) { int *buffer = malloc(SAMPLE_COUNT*sizeof(int));
@@ -92,6 +110,8 @@ int main(int argc, char **argv) { SNDFILE *out;
   SF_INFO sfout; int k;
   SF_INFO sfin; SNDFILE *in;
 
+  Stk *stk = NULL;
+
   //if (!(buffer = malloc (2 * SAMPLE_COUNT * sizeof (int)))) {
   //  printf ("Malloc failed.\n"); exit (0); }
 
@@ -106,21 +126,26 @@ int main(int argc, char **argv) { SNDFILE *out;
 
   // sequences of 12-EDO, 24-EDO, and 31-EDO.
   // tempo rises as pitch rises since the notes are not padded.
-  SampArr e = sc_edo(s,2,12);
+  /*SampArr e = sc_edo(s,2,12);
   SampArr f = sc_edo(s,2,24);
-  SampArr d = sc_edo(s,2,31);
+  SampArr d = sc_edo(s,2,31);*/
   //SampArr e = pad_s(de,44100);
   //Samp q = para(e.dat[0],e.dat[11],0);
   //Samp p = para(q,e.dat[7],0);
-  Samp q = reverse(s);
+  /*Samp q = reverse(s);
   Samp p = pitch(q,0.125);
-  Samp c = beat(p,s,44100);
+  Samp c = beat(p,s,44100);*/
+  //pushi(44100,stk); pushs(s,stk); pushf(0.125,stk); sget(1,stk); 
+  //reverses(stk); pitchs(stk);
+
+  stk = pitchs(reverses(sget(1,pushf(0.125,pushs(s,pushi(44100,stk))))));
+  stk = beats(sget(2,pushs(s,pushi(44100,stk))));
 
   if (!(out = sf_open ("sine.wav", SFM_WRITE, &sfout))) {
     printf ("Error : Not able to open output file.\n");
     free(buffer); return 1; }
 
-  play(out,sfout.channels,c); free(c.s);
+  play(out,sfout.channels,*(Samp *)stk->pt);
 
   //play_s(out,sfout.channels,e); play_s(out,sfout.channels,f);
   //play_s(out,sfout.channels,d);
@@ -129,6 +154,6 @@ int main(int argc, char **argv) { SNDFILE *out;
   //  for (k = 0 ; k < SAMPLE_COUNT ; k++) {
   //    buffer [k] = AMPLITUDE * sin (FREQ * 2 * k * M_PI); } }
 
-  sf_close(out);
-  free(buffer); free(q.s); free(p.s); //ss_free(e); ss_free(f); ss_free(d);
+  sf_close(out); //st_free(stk);
+  //free(buffer); free(q.s); free(p.s); //ss_free(e); ss_free(f); ss_free(d);
   return 0; }
