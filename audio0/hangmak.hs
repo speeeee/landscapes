@@ -1,7 +1,7 @@
 import System.Environment (getArgs)
 import Control.Applicative
 import Data.List.Split
-import Data.List (find,intercalate,union,uncons)
+import Data.List (find,intercalate,intersect,uncons)
 import Text.Regex
 
 data Macro = Macro { patt :: Regex, rep :: (([Macro],[Char]) -> ([Macro],[Char])) }
@@ -11,20 +11,20 @@ data Macro = Macro { patt :: Regex, rep :: (([Macro],[Char]) -> ([Macro],[Char])
 
 main = do
   (o:i:_) <- getArgs 
-  (parse <$> readFile $ i++".cz") >>= writeFile o
+  (snd <$> parse mlst <$> readFile (i++".cz")) >>= writeFile o
 
 mlst :: [Macro]
-mlst = [Macro (mkRegex " hallo ") (subRegex (mkRegex "a") "e")]
+mlst = [Macro (mkRegex " hallo ") (\(m,k) -> (m,subRegex (mkRegex "a") "e" k))]
 
-parse :: [Char] -> ([Macro],[Char])
-parse = snd . replac . (,) mlst
+parse :: [Macro] -> [Char] -> ([Macro],[Char])
+parse = curry replac
 
 replac :: ([Macro],[Char]) -> ([Macro],[Char])
-replac s = let q = intersect s $ map (flip findRepla) s
-  in if null q then s else replac $ head q
+replac (m,c) = let q = filter ((c/=) . snd) $ map (\k -> findRepla (k,c) m) m
+  in if null q then (m,c) else replac $ head q
 
 findRepla :: (Macro,[Char]) -> [Macro] -> ([Macro],[Char])
-findRepla (m,c) ms = case regexMatchAll m c of
-                     Just (a,b,c,_) -> let (m',b') = (rep m) ms b
-                                       in (m',concat [a,b',c]
-                     Nothing -> (m,c)
+findRepla (m,c) ms = case matchRegexAll (patt m) c of
+                     Just (a,b,c,_) -> let (m',b') = (rep m) (ms,b)
+                                       in (m',concat [a,b',c])
+                     Nothing -> (ms,c)
