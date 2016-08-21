@@ -1,0 +1,4 @@
+`stk ([A-Za-z0-9_]+)``Stk *$$0 = malloc(sizeof(Stk));~#PUSH\`$$0\``DEF
+`,([A-Za-z0-9_]+)``~#REF = $$0s(~#REF);`DEF
+`end-stk``st_free(~#REF);~#DROP`DEF
+stk hello ,reverse end-stk

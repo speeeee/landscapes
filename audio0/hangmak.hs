@@ -52,16 +52,19 @@ subRS o k = foldl (\n e -> subRegex (mkRegex e) n (k!!(read [last e]::Int)))
 --subRS o k = let i = matchRegex (mkRegex "\\$\\$([0-9]+)") o
 --  in 
 
+form :: [Char] -> [Char]
+form o = subRegex (mkRegex "\\\\`") o "`"
+
 mlst :: [Macro]
 mlst = [Macro (mkRegex " (hallo) ") 
               (\(s,m,k:_) -> (s,m,subRegex (mkRegex "a") k "e"))
        ,Macro (mkRegex qexp')
               (\(s,m,i:_:o:_) -> --let (i:_:o:_) = getOccs (mkRegex qexp') k
-                           (s,Macro (mkRegex i) 
-                            (\(s',m',k') -> (s',m',subRS o k')):m,""))
+                           (s,Macro (mkRegex (form i)) 
+                            (\(s',m',k') -> (s',m',subRS (form o) k')):m,""))
        ,Macro (mkRegex $ "~#PUSH"++qexp) (\(s,m,k:_) -> (k:s,m,""))
-       ,Macro (mkRegex "~#DROP") (\(_:s,m,k) -> (s,m,""))
-       ,Macro (mkRegex "~#REF") (\(a:s,m,k) -> (a:s,m,a))]
+       ,Macro (mkRegex "~#REF") (\(a:s,m,k) -> (a:s,m,a))
+       ,Macro (mkRegex "~#DROP") (\(s,m,k) -> (tail s,m,""))]
 
 parse :: [[Char]] -> [Macro] -> [Char] -> ([[Char]],[Macro],[Char])
 parse s m c = replac (s,m,c)
