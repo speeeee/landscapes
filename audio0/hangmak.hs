@@ -9,7 +9,7 @@ import Text.Regex
 import Debug.Trace
 
 data Macro = Macro { patt :: Regex, 
-                     rep :: (([[Char]],[Macro],[Char]) -> ([[Char]],[Macro],[Char])) }
+                     rep :: (([[Char]],[Macro],[[Char]]) -> ([[Char]],[Macro],[Char])) }
 -- (storage (ex. used by stack initialization), macro list, target string)
 
 -- this is a very simple/naive implementation, will fix later.
@@ -35,6 +35,8 @@ qexp' = concat [qexp,"[[:space:]]*",qexp,"[[:space:]]*DEF"]
 -- "stk_fun" -> "stk = stk-fun(stk);\n"
 -- "[A-Za-z0-9_]" -> stk = $$(stk);\n"
 
+-- "stk ([A-Za-z0-9_]+)" -> "Stk *$$1 = malloc(sizeof(Stk));\n"
+
 -- expects the first subexpression as what is wanted.
 getOccs  :: Regex -> [Char] -> [[Char]]
 getOccs' :: Regex -> [Char] -> [[Char]] -> [[Char]]
@@ -43,21 +45,21 @@ getOccs' r k q = case matchRegexAll r k of
                  Just (_,_,_,d) -> d
                  Nothing -> []
 
-subRS :: [Char] -> [Char] -> [Char]
-subRS o k = foldl (\n e -> subRegex (mkRegex e) n (drop (read [(last e)]::Int) k))
+subRS :: [Char] -> [[Char]] -> [Char]
+subRS o k = foldl (\n e -> subRegex (mkRegex e) n (k!!(read [last e]::Int)))
   o (map (("\\$\\$"++) . show) [0,1..9])
+-- searches o for ($$n) and replaces them with the nth subexpression
+--subRS o k = let i = matchRegex (mkRegex "\\$\\$([0-9]+)") o
+--  in 
 
 mlst :: [Macro]
-mlst = [Macro (mkRegex " hallo ") (\(s,m,k) -> (s,m,subRegex (mkRegex "a") k "e"))
+mlst = [Macro (mkRegex " (hallo) ") 
+              (\(s,m,k:_) -> (s,m,subRegex (mkRegex "a") k "e"))
        ,Macro (mkRegex qexp')
-              (\(s,m,k) -> let (i:_:o:_) = getOccs (mkRegex qexp') k
-                           in (s,Macro (mkRegex i) 
+              (\(s,m,i:_:o:_) -> --let (i:_:o:_) = getOccs (mkRegex qexp') k
+                           (s,Macro (mkRegex i) 
                             (\(s',m',k') -> (s',m',subRS o k')):m,""))
-       ,let qexpp = mkRegex $ "~#PUSH"++qexp
-        in Macro qexpp 
-              (\(s,m,k) -> case matchRegex qexpp k of
-                           Just (a:_) -> (a:s,m,"")
-                           Nothing -> (s,m,""))
+       ,Macro (mkRegex $ "~#PUSH"++qexp) (\(s,m,k:_) -> (k:s,m,""))
        ,Macro (mkRegex "~#DROP") (\(_:s,m,k) -> (s,m,""))
        ,Macro (mkRegex "~#REF") (\(a:s,m,k) -> (a:s,m,a))]
 
@@ -70,7 +72,7 @@ replac (s,m,c) = let q = filter ((c/=) . thd) $ map (\k -> findRepla (k,c) m s) 
 
 findRepla :: (Macro,[Char]) -> [Macro] -> [[Char]] -> ([[Char]],[Macro],[Char])
 findRepla (m,c) ms s = trace (show c) $ case matchRegexAll (patt m) c of
-                       Just (a,b,c,_) -> let (s',m',b') = (rep m) (s,ms,b)
+                       Just (a,b,c,d) -> let (s',m',b') = (rep m) (s,ms,d)
                                          in (s',m',concat [a,b',c])
                        Nothing -> (s,ms,c)
 
