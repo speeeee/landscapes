@@ -53,7 +53,8 @@ subRS o k = foldl (\n e -> subRegex (mkRegex e) n (k!!(read [last e]::Int)))
 --  in 
 
 form :: [Char] -> [Char]
-form o = subRegex (mkRegex "\\\\`") o "`"
+form o = foldr (\(a,b) n -> subRegex (mkRegex $ "\\\\"++a) n b) o 
+               [("`","`"),("n","\n"),("t","\n")]
 
 mlst :: [Macro]
 mlst = [Macro (mkRegex " (hallo) ") 

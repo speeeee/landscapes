@@ -1,0 +1,17 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+#include <sndfile.h>
+
+#include "sounds.h"
+
+// currently backwards
+main { stk
+  init_key >> s 44100 12 * alloc >> mus
+  s 2 12 sc_edo 
+  du 5 get 0 500 sample 88 loop
+  5 get 0.5 pitch 0 1000 sample 44 loop
+  44100 12 * alloc sw 176400 77175 beat
+  sw 176400 0 beat play end }
