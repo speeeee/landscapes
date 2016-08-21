@@ -52,7 +52,7 @@ mlst = [Macro (mkRegex " hallo ") (\(s,m,k) -> (s,m,subRegex (mkRegex "a") k "e"
        ,Macro (mkRegex qexp')
               (\(s,m,k) -> let (i:_:o:_) = getOccs (mkRegex qexp') k
                            in (s,Macro (mkRegex i) 
-                            (\(s',m',k') -> (s',m',subRS o (tail k'))):m,""))]
+                            (\(s',m',k') -> (s',m',subRS o k')):m,""))]
 
 parse :: [[Char]] -> [Macro] -> [Char] -> ([[Char]],[Macro],[Char])
 parse s m c = replac (s,m,c)
