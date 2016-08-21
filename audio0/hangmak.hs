@@ -6,6 +6,8 @@ import Data.Foldable (foldlM)
 import Data.List (find,intercalate,union,uncons)
 import Text.Regex
 
+import Debug.Trace
+
 data Macro = Macro { patt :: Regex, 
                      rep :: (([[Char]],[Macro],[Char]) -> ([[Char]],[Macro],[Char])) }
 -- (storage (ex. used by stack initialization), macro list, target string)
@@ -28,6 +30,7 @@ inF i (s,m,_) = parse s m <$> readFile i
 
 qexp :: [Char]
 qexp = "`((\\\\.|[^\\\\`])*)`"
+qexp' = concat [qexp,"[[:space:]]*",qexp,"[[:space:]]*DEF"]
 
 -- "stk_fun" -> "stk = stk-fun(stk);\n"
 -- "[A-Za-z0-9_]" -> stk = $$(stk);\n"
@@ -37,15 +40,19 @@ getOccs  :: Regex -> [Char] -> [[Char]]
 getOccs' :: Regex -> [Char] -> [[Char]] -> [[Char]]
 getOccs r k = getOccs' r k []
 getOccs' r k q = case matchRegexAll r k of
-                 Just (_,_,c,(b:_)) -> getOccs' r c (b:q)
-                 Nothing -> reverse q
+                 Just (_,_,_,d) -> d
+                 Nothing -> []
+
+subRS :: [Char] -> [Char] -> [Char]
+subRS o k = foldl (\n e -> subRegex (mkRegex e) n (drop (read [(last e)]::Int) k))
+  o (map (("\\$\\$"++) . show) [0,1..9])
 
 mlst :: [Macro]
 mlst = [Macro (mkRegex " hallo ") (\(s,m,k) -> (s,m,subRegex (mkRegex "a") k "e"))
-       ,Macro (mkRegex $ concat [qexp,"\\s*",qexp,"\\s*DEF"])
-              (\(s,m,k) -> let (i:o:_) = map (filter ('\\'/=)) $ getOccs (mkRegex qexp) k
+       ,Macro (mkRegex qexp')
+              (\(s,m,k) -> let (i:_:o:_) = getOccs (mkRegex qexp') k
                            in (s,Macro (mkRegex i) 
-                            (\(s',m',k') -> (s',m',subRegex (mkRegex "$$") o k')):m,""))]
+                            (\(s',m',k') -> (s',m',subRS o (tail k'))):m,""))]
 
 parse :: [[Char]] -> [Macro] -> [Char] -> ([[Char]],[Macro],[Char])
 parse s m c = replac (s,m,c)
@@ -55,7 +62,7 @@ replac (s,m,c) = let q = filter ((c/=) . thd) $ map (\k -> findRepla (k,c) m s) 
   in if null q then (s,m,c) else replac $ head q
 
 findRepla :: (Macro,[Char]) -> [Macro] -> [[Char]] -> ([[Char]],[Macro],[Char])
-findRepla (m,c) ms s = case matchRegexAll (patt m) c of
+findRepla (m,c) ms s = trace (show c) $ case matchRegexAll (patt m) c of
                        Just (a,b,c,_) -> let (s',m',b') = (rep m) (s,ms,b)
                                          in (s',m',concat [a,b',c])
                        Nothing -> (s,ms,c)
