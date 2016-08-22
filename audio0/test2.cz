@@ -1,4 +1,38 @@
-`stk ([A-Za-z0-9_]+)``Stk *$$0 = malloc(sizeof(Stk));~#PUSH\`$$0\``DEF
-`,([A-Za-z0-9_]+)``~#REF = $$0s(~#REF);`DEF
+`!stk ([A-Za-z0-9_]+)``Stk *$$0 = malloc(sizeof(Stk));~#PUSH\`$$0\``DEF
+`:([A-Za-z0-9_]+)``~#REF = $$0s(~#REF);\n`DEF
+`\{(i|s|sa|f|sl)\|([^\}]+)\}``~#REF = push$$0($$1,~#REF);\n`DEF
+`:> ([A-Za-z0-9_]+)``Stk *$$0 = ~#REF;\n`DEF
+`var\|([A-Za-z0-9_]+)``~#REF = lift($$0,~#REF);\n`DEF
 `end-stk``st_free(~#REF);~#DROP`DEF
-stk hello ,reverse end-stk
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <math.h>
+
+#include <sndfile.h>
+#include "sounds.h"
+
+int main(int argc, char **argv) { SNDFILE *out;
+  SF_INFO sfout; int k; SF_INFO sfin; SNDFILE *in;
+
+  memset(&sfout, 0, sizeof(sfout)); sfout.samplerate = 44100;
+  sfout.frames = SAMPLE_COUNT*12; sfout.channels = 1;
+  sfout.format = (SF_FORMAT_WAV | SF_FORMAT_PCM_16);
+
+  int *buffer = init_key(22050); Samp s = { 22050, buffer };
+
+  int *buf2 = calloc(12*4410,sizeof(int));
+  Samp mus = (Samp) { SAMPLE_COUNT*12, buf2 };
+  SampArr a = sc_edo(s,2,12);
+
+  !stk nstk {s|a.dat[5]} :> D
+            var|D {f|0.5} :pitch {i|0} {i|1000} :sample {i|88} :loop
+            {s|mus} var|D {i|0} {i|500} :sample {i|88} :loop
+            {i|176400} {i|0} :beat {i|1} :sget {i|176400} {i|77175} :beat
+
+  if (!(out = sf_open("sine.wav", SFM_WRITE, &sfout))) {
+    printf("Error : Not able to open output file.\n");
+    free(buffer); return 1; }
+
+  play(out,sfout.channels,*(Samp *)~#REF->pt);
+  sf_close(out); end-stk return 0; }
