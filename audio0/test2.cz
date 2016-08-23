@@ -29,6 +29,7 @@ int main(int argc, char **argv) { SNDFILE *out;
             var|D {f|0.5} :pitch {i|0} {i|1000} :sample {i|88} :loop
             {s|mus} var|D {i|0} {i|500} :sample {i|88} :loop
             {i|176400} {i|0} :beat {i|1} :sget {i|176400} {i|77175} :beat
+            {f|100.0} :lpf {f|-6.0} :amp
 
   if (!(out = sf_open("sine.wav", SFM_WRITE, &sfout))) {
     printf("Error : Not able to open output file.\n");

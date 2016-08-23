@@ -116,6 +116,17 @@ Samp loop(Samp a, sf_count_t amt) { Samp c; c.l = a.l*amt;
 Stk *loops(Stk *x) { Samp b = loop(*(Samp *)x->prev->pt,*(int *)x->pt);
   return pushs(b,pop(pop(x))); } // reversed
 
+/* == Manipulation of individiual frequencies == */
+
+//filteredValue = oldValue + (newValue - oldValue) / (smoothing / timeSinceLastUpdate)
+// test of low-pass filter
+Samp lpf(Samp a, float s) { Samp b; b.l = a.l; b.s = malloc(b.l*sizeof(int));
+  b.s[0] = a.s[0]; for(int i=1;i<b.l;i++) { 
+    b.s[i] = b.s[i-1] + (int)((a.s[i]-b.s[i-1])/s);
+             /*a.s[i];*/ } return b; }
+Stk *lpfs(Stk *x) { Samp b = lpf(*(Samp *)x->prev->pt,*(float *)x->pt);
+  return pushs(b,pop(pop(x))); }
+
 /* == Rhythm & Compisition - Base ==== */
 
 // Sample b MUST not be larger than Sample a.
@@ -140,6 +151,7 @@ Stk *beats(Stk *x) { Samp s = beat(*(Samp *)x->prev->prev->prev->pt
 
 /* == Main functions and IO - Base ==== */
 
+// fix SAMPLE_COUNT
 // purposefully specific to "key.wav".
 int *init_key(sf_count_t sc) { int *buffer = malloc(SAMPLE_COUNT*sizeof(int));
   SF_INFO sfin; memset(&sfin, 0, sizeof(sfin)); SNDFILE *in;
