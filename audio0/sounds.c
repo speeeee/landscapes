@@ -12,55 +12,84 @@
 #define	SAMPLE_RATE 44100
 #define	SAMPLE_COUNT (SAMPLE_RATE)
 
+//#define cons(X,Y) 
+
 // mechanical
 // slight vibrato
 
 typedef void (*FTy)(void *);
+//typedef struct { Stk *(*f)(Stk *); int in; } Fun;
+//typedef void *(*Wc)(void *,Fun);
+//typedef struct { Stk *(*f)(Stk *); int in; int out; } Fun;
 
-void s_freev(void *); void ss_freev(void *);
+// these functions can be composed and mapped to create other freeing functions.
+void s_freev(void *); void ss_freev(void *); void v_free(void *);
+/*void *wci(Fun,Stk *,void *); void *wcf(Fun,Stk *,void *);
+void *wcs(Fun,Stk *,void *); void *wcsa(Fun,Stk *,void *);*/
 void none(void *a) { return; }
 
 int sign(int a) { return (a>0) - (a<0); }
 
-FTy typs[4] = { none, s_freev, ss_freev, free /* to be changed: SampLst */ };
+FTy typs[4] = { none, s_freev, ss_freev, free /* to be changed: SampLst */
+              /*, v_free*/ };
+//Dc  dc[4] = { wci, wcf, wcs, wcsa };
 
 typedef struct { sf_count_t l; int *s; } Samp;
 typedef struct { int n; Samp *dat; } SampArr;
+// type only accessible with `decontextualize'
+// macro processer will decontextualize and then recontextualize arrays
+//   before and after calls to certain general functions.
+
+// kind of like monads?  maybe add fmap style function
+typedef struct { int l; void *s; int t; FTy vt; } AmbArr;
 typedef struct Meas { Samp sa; struct Meas *next; } Meas;
 typedef struct { Meas *s; int fpm; } SampLst;
 
-typedef struct Stk { void *pt; FTy typ; int *rc; struct Stk *prev; } Stk;
+typedef struct Stk { void *pt; int t; FTy typ; int *rc; struct Stk *prev; } Stk;
+typedef Stk *(*Fun)(Stk *);
 
-Stk *push(void *y,int *rc,FTy typ,Stk *x) { Stk *e = malloc(sizeof(Stk));
-  e->pt = y; e->rc = rc; e->prev = NULL; e->typ = typ;
+Stk *push(void *y,int t,int *rc,FTy typ,Stk *x) { Stk *e = malloc(sizeof(Stk));
+  e->pt = y; e->t = t; e->rc = rc; e->prev = NULL; e->typ = typ;
   if(x) { e->prev = x; } x = e; return x; }
-Stk *pushr(void *y,FTy typ,Stk *x) { int *rc = malloc(sizeof(int)); *rc = 1;
-  return push(y,rc,typ,x); }
+Stk *pushr(void *y,int t,FTy typ,Stk *x) { int *rc = malloc(sizeof(int)); *rc = 1;
+  return push(y,t,rc,typ,x); }
 Stk *pop(Stk *x) { Stk *q = x->prev;
   if(--(*(x->rc))<1) { (x->typ)(x->pt); free(x->pt); free(x->rc); } x = q; return x; }
 //void dup(Stk *x) { push(x->y,x->rc,x); }
 Stk *sget(int q,Stk *x) { Stk *e = x; for(int i=0;i<q;i++) { e = e->prev; }
-  *e->rc = *e->rc+1; return push(e->pt,e->rc,e->typ,x); }
+  *e->rc = *e->rc+1; return push(e->pt,e->t,e->rc,e->typ,x); }
 Stk *sgets(Stk *x) { return sget(*(int *)x->pt,pop(x)); }
 
-Stk *lift(Stk *q, Stk *x) { *q->rc = *q->rc+1; return push(q->pt,q->rc,q->typ,x); }
+Stk *lift(Stk *q, Stk *x) { *q->rc = *q->rc+1; return push(q->pt,q->t,q->rc,q->typ,x); }
 
 Stk *pushs(Samp e,Stk *x) { Samp *f = malloc(sizeof(Samp));
-  *f = e; return pushr((void *)f,typs[1],x); }
+  *f = e; return pushr((void *)f,2,typs[1],x); }
 Stk *pushsa(SampArr e,Stk *x) { SampArr *f = malloc(sizeof(SampArr));
-  *f = e; return pushr((void *)f,typs[2],x); }
+  *f = e; return pushr((void *)f,3,typs[2],x); }
 Stk *pushsl(SampLst e,Stk *x) { SampLst *f = malloc(sizeof(SampLst));
-  *f = e; return pushr((void *)f,typs[3],x); }
+  *f = e; return pushr((void *)f,4,typs[3],x); }
 Stk *pushi(int e,Stk *x) { int *f = malloc(sizeof(int));
-  *f = e; return pushr((void *)f,typs[0],x); }
+  *f = e; return pushr((void *)f,0,typs[0],x); }
 Stk *pushf(float e,Stk *x) { float *f = malloc(sizeof(float));
-  *f = e; return pushr((void *)f,typs[0],x); }
+  *f = e; return pushr((void *)f,1,typs[0],x); }
+Stk *pushfu(Fun f,Stk *x) { return pushr((void *)f,5,typs[0],x); }
+/*Stk *pushv(AmbArr e,Stk *x) { AmbArr *f = malloc(sizeof(AmbArr));
+  *f = e; return pushr((void *)f,6,typs[4],x); }*/
 
 void ss_free(SampArr s) { for(int i=0;i<s.n;i++) { free(s.dat[i].s); } free(s.dat); }
 void s_free(Samp s) { free(s.s); }
 
 void ss_freev(void *s) { ss_free(*(SampArr *)s); }
 void s_freev(void *s) { s_free(*(Samp *)s); }
+
+/* == Context management ============= */
+
+// essentially grants the ability to use type-agnostic functions.
+/*Stk *with_context(Fun f,Stk *x) { AmbArr a = (dc[*x->rc])(x->pt);
+  return pushv(a,pop(x)); }
+
+void *wcs(Fun f, Stk *stk, void *x) { Samp a = *(Samp *)y; AmbArr b; b.l = a.l;
+  b.s = malloc(b.l*sizeof(void *));*/
 
 /* == Sample manipulation - Base ===== */
 
@@ -126,6 +155,24 @@ Samp lpf(Samp a, float s) { Samp b; b.l = a.l; b.s = malloc(b.l*sizeof(int));
              /*a.s[i];*/ } return b; }
 Stk *lpfs(Stk *x) { Samp b = lpf(*(Samp *)x->prev->pt,*(float *)x->pt);
   return pushs(b,pop(pop(x))); }
+
+Samp cons(int a,Samp b) { Samp c; c.l = b.l+1; c.s = malloc(c.l*sizeof(int));
+  memcpy(&c.s[1],b.s,b.l*sizeof(int)); c.s[0] = a; return c; }
+
+// :`1-i a b` yields stk = pushi(1,a(b(stk)));
+
+// function f expects (void ** (e.g. Samp *),Stk *)
+Samp gmap(Samp a, Fun f, int span, int delta, Stk *stk) { Samp b; Samp q;
+  b.l = a.l; b.s = malloc(b.l*sizeof(int)); memcpy(b.s,a.s,b.l*sizeof(int));
+  for(int i=0;i<b.l;i+=delta) { Samp q; q.l = span; q.s = malloc(q.l*sizeof(int));
+    for(int e=0;e<span;e++) { q.s[e] = b.s[i+e]; }
+    pushs(q,stk); stk = f(stk); 
+    for(int e=0;e<span;e++) { b.s[i+e] = (*(Samp *)stk->pt).s[e]; } stk = pop(stk); }
+  s_free(q); return b; }
+Stk *gmaps(Stk *x) { Samp b = gmap(*(Samp *)x->prev->prev->prev->pt
+                                  ,*(Fun *)x->prev->prev->pt
+                                  ,*(int *)x->prev->pt,*(int *)x->pt,x);
+  return pushs(b,pop(pop(pop(x)))); }
 
 /* == Rhythm & Compisition - Base ==== */
 
