@@ -12,8 +12,7 @@
 // organize this into files: freeing utilities, printing utilies, and main.
 
 typedef void (*Freer)(void *x);
-typedef Item (*TFun)(Type);
-typedef Stk *(*SFun)(Stk *);
+
 // 'typ' refers to a type name.
 //typedef struct { char *typ; Freer x; } Fr;
 
@@ -24,14 +23,18 @@ typedef struct { const char *tname; } T;
 typedef struct TypeSig { T t; struct TypeSig *next; } TypeSig;
 
 typedef struct { const char *fname; Item x; } Field;
-typedef struct { TypeSig *name; Field *fields; int fsz; } Type;
+typedef struct { const char *name; Field *fields; int fsz; } Type;
 // interfacing safely with primitive types; allows runtime typechecking.
 typedef struct { const char *name; Item x; } PrimInter;
 
 typedef struct Stk { Item pt; /*Freer typ;*/ int *rc; struct Stk *prev; } Stk;
 
+typedef Item (*TFun)(Type);
+typedef Stk *(*SFun)(Stk *);
+
 void print_field(Field); void print_type(Type);
 void free_type(void *);
+Item item(void *, Freer, char *);
 
 // for unfilled variables
 void none(void *x) { return; }
@@ -57,8 +60,11 @@ Stk *push(Item y,int *rc,Stk *x) { Stk *e = malloc(sizeof(Stk));
 Stk *pushr(Item y,Stk *x) { int *rc = malloc(sizeof(int)); *rc = 1;
   return push(y,rc,x); }
 Stk *pop(Stk *x) { Stk *q = x->prev;
-  if(--(*(x->rc))<1) { (x->pt->f)(x->pt->x); free(x->rc); } x = q; return x; }
+  if(--(*(x->rc))<1) { (x->pt.f)(x->pt.x); free(x->rc); } x = q; return x; }
 void free_stk(Stk *x) { while(x->prev) { x = pop(x); } }
+
+// assuming for now that 'b' only has one element.
+Stk *stk_append(Stk *a, Stk *b) { pushr(b->pt,a); free(b); return a; }
 
 // == Stack pushes =========================== //
 
@@ -72,7 +78,7 @@ Stk *push_type_shallow(Type y, Stk *x) { Type *e = malloc(sizeof(Type));
 
 // == Printing =============================== //
 
-void print_int(int a) { printf("%i ", a); }
+/*void print_int(int a) { printf("%i ", a); }
 void print_float(float a) { printf("%f", a); }
 void print_field(Field a) { printf("{%s ",a.fname);
   if(a.x.fill) { switch(a.x.prim) { 
@@ -81,7 +87,7 @@ void print_field(Field a) { printf("{%s ",a.fname);
     default: print_type(*(Type *)a.x.x); } printf("} "); }
   else { printf("_ "); } }
 void print_type(Type a) { printf("(%s ",a.name);
-  for(int i=0;i<a.fsz;i++) { print_field(a.fields[i]); } printf(") "); }
+  for(int i=0;i<a.fsz;i++) { print_field(a.fields[i]); } printf(") "); }*/
 
 // == Construction =========================== //
 
@@ -90,7 +96,7 @@ Item item(void *x, Freer f, char *n) { return (Item) { x, f, n }; }
 // types work somewhat like partial application.
 Type type(char *name, Field *fields, int fsz) {
   return (Type) { name, fields, fsz }; }
-Field field(char *name, Item x, int fill) { return (Field) { name, x, fill }; }
+Field field(char *name, Item x) { return (Field) { name, x }; }
 //PrimInter pinter(void *buf, int type) { return (PrimInter) { buf, type }; }
 Field *fArr(int sz, ...) { va_list vl; va_start(vl,sz);
   Field *a = malloc(sz*sizeof(Field)); 
@@ -111,13 +117,13 @@ void free_type(void *b) { Type a = *(Type *)b;
 // in_field
 // a note is that in_field mutates the Type, but it shouldn't matter since
 // the stack makes deep copies before using.
-Type in_field(Type a, char *name, Item x) { int i;
+/*Type in_field(Type a, char *name, Item x) { int i;
   for(i=0;i<a.fsz;i++) { if(!strcmp(name,a.fields[i].fname)) {
     if(!a.fields[i].fill) { 
       a.fields[i] = (Field) { a.fields[i].fname, x, 1 }; }
     else { printf("ERROR: Data cannot be mutated after assignment.\n"); } } }
   if(i==a.fsz) { printf("ERROR: no such field `%s' in `%s'.\n", name, a.name); }
-  return a; }
+  return a; }*/
 
 // (Fun {In (Item:char **)} {Out (Item:char **)} {Data (Item:Stk *)})
 
@@ -131,25 +137,25 @@ Type in_field(Type a, char *name, Item x) { int i;
 
 // == Currying & others ======================== //
 
-Stk *curry(Stk *stk) { Type a = *(Type *)stk->pt->x; Item e = stk->prev->pt;
+Stk *curry(Stk *stk) { Type a = *(Type *)stk->pt.x; Item e = stk->prev->pt;
   a.fields[2].x.x = pushr(e,a.fields[2].x.x);
   a.fields[0].x.x = pass_queue(a.fields[0].x.x);
-  return push_type_shallow(a,pop(pop(x))); }
-Stk *apply(Stk *stk) { Type a = *(Type *)stk->pt->x;
+  return push_type_shallow(a,pop(pop(stk))); }
+Stk *apply(Stk *stk) { Type a = *(Type *)stk->pt.x;
   if(a.fields[0].x.x) { return apply(curry(stk)); }
   else { stk = stk_append(stk,a.fields[2].x.x); free_type((void *)&a);
          return stk; } }
 
 // == Sample function ========================== //
 
-Stk *add(Stk *x) { int a = *(int *)x->prev->pt.x; int b = *(int *)x->pt.x;
+Stk *add(Stk *x) { int a = *(int *)x->pt.x; int b = *(int *)x->prev->pt.x;
   return push_int(a+b,pop(pop(x))); }
 
 int main(int argc, char **argv) { Stk *stk;
   stk = push_int(3,stk); stk = push_int(4,stk);
   stk = push_type_shallow(type("Fun"
    ,fArr(3,field("Type",item((void *)type_sig(2,typ("Int"),typ("Int"))
-                            ,free_queue,"TypeSig"))
+                            ,none,"TypeSig"))
           ,field("F",item((void *)add,none,"TFun"))
           ,field("Data",item(NULL,none,"Stack"))),3),stk);
   stk = curry(stk); stk = curry(stk); stk = apply(stk);
