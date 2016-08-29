@@ -61,10 +61,10 @@ Stk *pushr(Item y,Stk *x) { int *rc = malloc(sizeof(int)); *rc = 1;
   return push(y,rc,x); }
 Stk *pop(Stk *x) { Stk *q = x->prev;
   if(--(*(x->rc))<1) { (x->pt.f)(x->pt.x); free(x->rc); } x = q; return x; }
-void free_stk(Stk *x) { while(x->prev) { x = pop(x); } }
 
 // assuming for now that 'b' only has one element.
-Stk *stk_append(Stk *a, Stk *b) { pushr(b->pt,a); free(b); return a; }
+Stk *stk_append(Stk *a, Stk *b) { a = pushr(b->pt,a); free(b); 
+  return a; }
 
 // == Stack pushes =========================== //
 
@@ -111,6 +111,7 @@ int *iArr(int sz, ...) { va_list vl; va_start(vl,sz);
 void free_type(void *b) { Type a = *(Type *)b;
   for(int i=0;i<a.fsz;i++) { //free(a.fields[i].fname);
     (a.fields[i].x.f)(a.fields[i].x.x); } /*free(a.name);*/ }
+void free_stk(void *a) { Stk *x = (Stk *) a; while(x->prev) { x = pop(x); } } 
 
 // == Field insertion ========================= //
 
@@ -143,7 +144,8 @@ Stk *curry(Stk *stk) { Type a = *(Type *)stk->pt.x; Item e = stk->prev->pt;
   return push_type_shallow(a,pop(pop(stk))); }
 Stk *apply(Stk *stk) { Type a = *(Type *)stk->pt.x;
   if(a.fields[0].x.x) { return apply(curry(stk)); }
-  else { stk = stk_append(stk,a.fields[2].x.x); free_type((void *)&a);
+  else { stk = stk_append(pop(stk),(*(SFun)a.fields[1].x.x)(a.fields[2].x.x));
+         free_type((void *)&a);
          return stk; } }
 
 // == Sample function ========================== //
@@ -157,7 +159,7 @@ int main(int argc, char **argv) { Stk *stk;
    ,fArr(3,field("Type",item((void *)type_sig(2,typ("Int"),typ("Int"))
                             ,none,"TypeSig"))
           ,field("F",item((void *)add,none,"TFun"))
-          ,field("Data",item(NULL,none,"Stack"))),3),stk);
+          ,field("Data",item(NULL,free_stk,"Stack"))),3),stk);
   stk = curry(stk); stk = curry(stk); stk = apply(stk);
   return 0; }
 
