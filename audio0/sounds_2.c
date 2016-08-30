@@ -57,12 +57,12 @@ void *copy_int(void *x) { int *i = malloc(sizeof(int));
 // == Queue management ======================= //
 
 // to-be-fixed
-TypeSig *to_queue(TypeSig *a, T t) { TypeSig *e = malloc(sizeof(TypeSig));
-  e->t = t; e->next = NULL; if(a) { a->next = e; return a; } return e; }
-/*{ TypeSig *a2 = a;
+TypeSig *to_queue(TypeSig *a, T t) /*{ TypeSig *e = malloc(sizeof(TypeSig));
+  e->t = t; e->next = NULL; if(a) { a->next = e; return a; } return e; }*/
+{ TypeSig *a2 = a;
    TypeSig *e = malloc(sizeof(TypeSig)); e->t = t; e->next = NULL;
    if(a2) { while(a2->next) { a2 = a2->next; } a2->next = e; }
-   else { a = e; } return a; }*/
+   else { a = e; } return a; }
 TypeSig *pass_queue(TypeSig *a) { TypeSig *e = a; a = a->next;
   free(e); return a; }
 
@@ -89,8 +89,9 @@ Stk *pop(Stk *x) { Stk *q = x->prev;
 Stk *pop_shallow(Stk *x) { return x->prev; }
 
 Stk *stk_append(Stk *a, Stk *b) { if(b) { a = stk_append(a,b->prev);
-  // mem-leak here: fix.
-  a = pushr(*(Item *)copy_item((void *)&b->pt),a); free(b); } return a; }
+  // case for copy_item_no_rt.
+  Item *e = (Item *)copy_item((void *)&b->pt);
+  a = pushr(*e,a); free(e); free(b); } return a; }
 
 // == Stack pushes =========================== //
 
@@ -136,29 +137,34 @@ int *iArr(int sz, ...) { va_list vl; va_start(vl,sz);
 
 void free_type(void *b) { Type a = *(Type *)b;
   for(int i=0;i<a.fsz;i++) { //free(a.fields[i].fname);
-    (a.fields[i].x.f)(a.fields[i].x.x); } /*free(a.name);*/ }
+    (a.fields[i].x.f)(a.fields[i].x.x); } free(a.fields); a.fields = NULL; }
 void free_stk(void *a) { Stk *x = (Stk *)a; while(x) { x = pop(x); } }
 void free_queue(void *a) { TypeSig *b = (TypeSig *)a;
   if(a) { free(a); if(b) { free_queue((void *)b->next); } } }
 
 // == Copying ================================= //
 
+// make no_rt for all copiers.
+
 void *copy_item(void *a) { Item b = *(Item *)a;
   Item *c = malloc(sizeof(Item)); *c = item((b.c)(b.x), b.f, b.c, b.type);
   return (void *)c; }
 void *copy_field(void *a) { Field b = *(Field *)a;
+  // case for copy_item_no_rt.
   Item *f = (Item *)copy_item((void *)&b.x); // encased void pointer must be freed
                                              // here due to lack of context.
   Field *c = malloc(sizeof(Field)); *c = field(b.fname,*f); free(f);
   return (void *)c; }
+Type copy_type_no_rt(Type b) { Type c;
+  c.fsz = b.fsz; c.fields = malloc(c.fsz*sizeof(Field));
+  // case for copy_field_no_rt.
+  for(int i=0;i<c.fsz;i++) { Field *f = (Field *)copy_field((void *)&b.fields[i]);
+    c.fields[i] = *f; free(f); } return c; }
 void *copy_type(void *a) { Type b = *(Type *)a; Type *c = malloc(sizeof(Type));
-  c->fsz = b.fsz; c->fields = malloc(c->fsz*sizeof(Field));
-  for(int i=0;i<c->fsz;i++) { Field *f = (Field *)copy_field((void *)&b.fields[i]);
-    c->fields[i] = *f; free(f); }
-  return (void *)c; }
+  *c = copy_type_no_rt(b); return (void *)c; }
 
 void *copy_queue(void *a) { TypeSig *b = (TypeSig *)a; TypeSig *c = NULL;
-  while(b) { to_queue(c,b->t); b = b->next; } return (void *)c; }
+  while(b) { c = to_queue(c,b->t); b = b->next; } return (void *)c; }
 void *copy_stk(void *a) { Stk *b = (Stk *)a; Stk *c = NULL;
   c = stk_append(c,b); return (void *)c; }
 
@@ -194,9 +200,9 @@ Stk *curry_slow(Stk *stk) { Type a = *(Type *)copy_type(stk->pt.x);
   return push_type(a,pop(pop(stk))); }
 // this is specifically destructive.  type reference MUST be copied before use.
 Stk *curry(Stk *stk) { Type a = *(Type *)stk->pt.x;
-  // fix mem-leak here.
-  Item e = *(Item *)copy_item((void *)&stk->prev->pt);
-  a.fields[2].x.x = pushr(e,a.fields[2].x.x);
+  // case for copy_item_no_rt
+  Item *e = (Item *)copy_item((void *)&stk->prev->pt);
+  a.fields[2].x.x = pushr(*e,a.fields[2].x.x);
   a.fields[0].x.x = pass_queue(a.fields[0].x.x);
   return push_type(a,pop(pop_shallow(stk))); }
 Stk *apply(Stk *stk) { Type a = *(Type *)stk->pt.x;
@@ -212,13 +218,15 @@ Stk *add(Stk *x) { int a = *(int *)x->pt.x; int b = *(int *)x->prev->pt.x;
   return push_int(a+b,pop(pop(x))); }
 
 int main(int argc, char **argv) { Stk *stk;
+  Type t_add = type("Fun"
+    ,fArr(3,field("Type",item((void *)type_sig(2,typ("Int"),typ("Int"))
+                             ,free_queue,copy_queue,"TypeSig"))
+           ,field("F",item((void *)add,none,id,"TFun"))
+           ,field("Data",item(NULL,free_stk,copy_stk,"Stack"))),3);
   stk = push_int(3,stk); stk = push_int(4,stk);
-  stk = push_type(type("Fun"
-   ,fArr(3,field("Type",item((void *)type_sig(2,typ("Int"),typ("Int"))
-                            ,free_queue,copy_queue,"TypeSig"))
-          ,field("F",item((void *)add,none,id,"TFun"))
-          ,field("Data",item(NULL,free_stk,copy_stk,"Stack"))),3),stk);
+  stk = push_type(copy_type_no_rt(t_add),stk);
   stk = curry(stk); stk = curry(stk); stk = apply(stk);
+  printf("%i\n",*(int *)stk->pt.x);
   return 0; }
 
 // remember that 'stk_free' does not fully work considering 'push_type_shallow'.
