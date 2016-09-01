@@ -14,14 +14,44 @@
 
 typedef struct { const char *name; sf_count_t len; } Sound;
 typedef struct { int *dat; sf_count_t l; } Samp;
+typedef struct { Samp *d; sf_count_t len; } SampArr;
 typedef Samp (*wsnd)(Samp, va_list);
+
+Samp concat(SampArr); Samp concat_pad(SampArr, int);
 
 Sound snd(const char *name, sf_count_t len) { return (Sound) { name, len }; }
 
-Samp pitch(Samp buf, va_list vl) { double ratio = va_arg(vl,double);
-  Samp buf2; buf2.l = ceil((double)buf.l/ratio);
+Samp pitch(Samp buf, double ratio) { Samp buf2; buf2.l = ceil((double)buf.l/ratio);
   buf2.dat = malloc(buf2.l*sizeof(int)); double e = 0;
   for(int i=0;i<buf2.l;i++) { buf2.dat[i] = buf.dat[(int)e]; e+=ratio; } return buf2; }
+Samp pitchn(Samp buf, va_list vl) { double ratio = va_arg(vl,double);
+  return pitch(buf,ratio); }
+
+SampArr sc_edo(Samp key, double ratio, int notes) {
+  SampArr s; s.d = malloc(notes*sizeof(Samp)); s.len = notes;
+  for(int i=0;i<notes;i++) { s.d[i] = pitch(key,pow(pow(ratio,1.0/notes),i)); }
+  return s; }
+Samp sc_edo_c(Samp key, va_list vl) {
+  double r = va_arg(vl,double); int n = va_arg(vl,int);
+  SampArr c = sc_edo(key,r,n); Samp e = concat(c);
+  for(int i=0;i<c.len;i++) { free(c.d[i].dat); } free(c.d); return e; }
+
+Samp para(Samp a, Samp b, int pos) { Samp c; c.dat = malloc(a.l*sizeof(int));
+  memcpy(c.dat,a.dat,a.l*sizeof(int)); c.l = a.l; 
+  for(int i=pos;i<b.l+pos&&i<c.l;i++) { c.dat[i] = c.dat[i]+b.dat[i-pos]; }
+  return c; }
+Samp para_(Samp a, Samp b, int pos) { Samp c = para(a,b,pos);
+  free(a.dat); return c; }
+
+/* == Functions for transforming SampArr ========== */
+
+Samp concat(SampArr a) { Samp b; b.l = 0; for(int i=0;i<a.len;i++) { b.l += a.d[i].l; }
+  b.dat = malloc(b.l*sizeof(int));
+  for(int i=0,e=0;i<b.l&&e<a.len;i+=a.d[e].l,e++) { b = para_(b,a.d[e],i); }
+  return b; }
+Samp concat_pad(SampArr a, int pad) { Samp b; b.l = a.len*pad;
+  b.dat = malloc(b.l*sizeof(int));
+  for(int e=0;e<a.len;e++) { b = para_(b,a.d[e],e*pad); } return b; }
 
 /* == Main functions and IO - Base ==== */
 
@@ -75,5 +105,6 @@ int main(int argc, char **argv) { SNDFILE *out;
   //int *buffer = init_key(SAMPLE_COUNT/2); Samp s = { SAMPLE_COUNT/2, buffer };
 
   //play(out,sfout.channels,c);
-  with_sound("keyB.wav",snd("key3.wav",22050),1,pitch,pow(2.,1./12));
+  // reminder: compiler must know that literal is of the type of the arg if var_arg.
+  with_sound("keyB.wav",snd("key3.wav",22050),1,sc_edo_c,2.0,12);
   return 0; }
