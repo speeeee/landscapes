@@ -34,7 +34,7 @@ SampArr sc_edo(Samp key, double ratio, int notes) {
 Samp sc_edo_c(Samp key, va_list vl) {
   double r = va_arg(vl,double); int n = va_arg(vl,int);
   SampArr c = sc_edo(key,r,n); Samp e = concat(c);
-  for(int i=0;i<c.len;i++) { free(c.d[i].dat); } free(c.d); return e; }
+  for(int i=0;i<c.len;i++) { free(c.d[i].dat); } free(c.d); free(key.dat); return e; }
 
 Samp para(Samp a, Samp b, int pos) { Samp c; c.dat = malloc(a.l*sizeof(int));
   memcpy(c.dat,a.dat,a.l*sizeof(int)); c.l = a.l; 
@@ -42,6 +42,14 @@ Samp para(Samp a, Samp b, int pos) { Samp c; c.dat = malloc(a.l*sizeof(int));
   return c; }
 Samp para_(Samp a, Samp b, int pos) { Samp c = para(a,b,pos);
   free(a.dat); return c; }
+Samp paran(Samp buf, va_list vl) { Samp b = va_arg(vl,Samp); int pos = va_arg(vl,int);
+  Samp c = para_(buf,b,pos); free(b.dat); return c; }
+
+Samp sample(Samp s, int a, int b) { Samp c; c.l = b-a;
+  c.dat = malloc(c.l*sizeof(int)); for(int i=a;i<b;i++) { c.dat[i] = s.dat[i]; }
+  return c; }
+Samp samplen(Samp buf, va_list vl) { int a = va_arg(vl,int); int b = va_arg(vl,int);
+  Samp c = sample(buf,a,b); free(buf.dat); return c; }
 
 /* == Functions for transforming SampArr ========== */
 
