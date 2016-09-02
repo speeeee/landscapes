@@ -51,6 +51,12 @@ Samp sample(Samp s, int a, int b) { Samp c; c.l = b-a;
 Samp samplen(Samp buf, va_list vl) { int a = va_arg(vl,int); int b = va_arg(vl,int);
   Samp c = sample(buf,a,b); free(buf.dat); return c; }
 
+Samp loop(Samp a, int amt) { Samp c; c.l = a.l*amt;
+  c.dat = malloc(c.l*sizeof(int)); for(int i=0;i<c.l;i++) { c.dat[i] = a.dat[i%a.l]; }
+  return c; }
+Samp loopn(Samp buf, va_list vl) { int a = va_arg(vl,int);
+  Samp c = loop(buf,a); free(buf.dat); return c; }
+
 /* == Functions for transforming SampArr ========== */
 
 Samp concat(SampArr a) { Samp b; b.l = 0; for(int i=0;i<a.len;i++) { b.l += a.d[i].l; }
@@ -96,23 +102,11 @@ void with_sound(const char *dest, Sound src, int chan, wsnd f, ...) {
   SNDFILE *d = sf_init_1(dest, dd.l, SFM_WRITE);
   play(d,chan,dd); sf_close(d); free(dd.dat); }
 
-int main(int argc, char **argv) { SNDFILE *out;
-  /*SF_INFO sfout; int k;
-  SF_INFO sfin; SNDFILE *in;
-
-  //if (!(buffer = malloc (2 * SAMPLE_COUNT * sizeof (int)))) {
-  //  printf ("Malloc failed.\n"); exit (0); }
-
-  memset(&sfout, 0, sizeof(sfout));
-
-  sfout.samplerate = SAMPLE_RATE;
-  sfout.frames = SAMPLE_COUNT*12;
-  sfout.channels = 1;
-  sfout.format = (SF_FORMAT_WAV | SF_FORMAT_PCM_16);*/
+/*int main(int argc, char **argv) { SNDFILE *out;
 
   //int *buffer = init_key(SAMPLE_COUNT/2); Samp s = { SAMPLE_COUNT/2, buffer };
 
   //play(out,sfout.channels,c);
   // reminder: compiler must know that literal is of the type of the arg if var_arg.
   with_sound("keyB.wav",snd("key3.wav",22050),1,sc_edo_c,2.0,12);
-  return 0; }
+  return 0; }*/
