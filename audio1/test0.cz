@@ -1,0 +1,15 @@
+`Snin ([A-Za-z0-9_\.]+) ([A-Za-z0-9_\.]+)``e = sf_init_1("$$0.wav",$$1,SFM_READ)`DEF
+`Sout ([A-Za-z0-9_\.]+) ([A-Za-z0-9_\.]+)``e = sf_init_1("$$0.wav",$$1,SFM_WRITE)`DEF
+`([A-Za-z0-9_\.]+) ([A-Za-z0-9_\.]+) in``Snin $$0 $$1;\nSamp $$0; $$0.dat = malloc($$1*sizeof(int)); $$0.l = $$1;\nsf_read_int(e,$$0.dat,$$1); sf_close(e);\n~#PUSH\`$$0\``DEF
+`([A-Za-z0-9_\.]+) end``Sout $$0 ~#REF.l; play(e,1,~#REF); sf_close(e); free(~#REF.dat);\n~#DROP`DEF
+`init-snd``SNDFILE *e;\n`DEF
+
+#include <stdio.h>
+#include <stdlib.h>
+#include <sndfile.h>
+
+#include "sonido.h"
+
+int main(int argc, char **argv) { init-snd
+  key3 22050 in pitch(key3,pow(2,1./12)); keyB end
+  return 0; }
